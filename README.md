@@ -2,15 +2,15 @@
 
 A drop-in replacement for SwiftUI's `List` on **macOS**, backed by `NSTableView`.
 
-![FastList demo — 50,000 rows that scroll and select instantly](Resources/demo.png)
+![FastList demo showing 50,000 rows that scroll and select instantly](Resources/demo.png)
 
 > The bundled `FastListDemo` showing 50,000 rows that filter, select, and scroll instantly.
 
 SwiftUI's `List` and `Table` rebuild every visible row's body on each selection change and
-stall badly on large data sets — selecting a row in a list of a few thousand items can hang
-for seconds. `FastList` instead materializes and recycles only the **visible** rows, the way
-Mail's message list works, so selection and scrolling stay instant no matter how long the
-list is — while keeping a SwiftUI-first, declarative API.
+slow down sharply on large data sets. Selecting a row in a list of a few thousand items can
+hang for seconds. `FastList` instead materializes and recycles only the visible rows, the way
+Mail's message list works, so selection and scrolling stay fast no matter how long the list
+is, while keeping a SwiftUI-first, declarative API.
 
 ```swift
 import FastList
@@ -31,32 +31,54 @@ FastList(people, selection: $selection) { person in
 }
 ```
 
+## Benchmark
+
+Selecting a row costs the same whether the list holds a thousand rows or a million, because
+the table only ever renders the rows on screen. These figures measure FastList's own
+per-update bookkeeping against a real `NSTableView`.
+
+| Rows      | Selection change | Reindex on data change |
+| --------- | ---------------- | ---------------------- |
+| 1,000     | 3.6 µs           | 0.40 ms                |
+| 10,000    | 3.5 µs           | 3.6 ms                 |
+| 100,000   | 8.3 µs           | 64 ms                  |
+| 1,000,000 | 3.5 µs           | 0.32 s                 |
+
+"Selection change" is the work done when the selection moves from one row to another, which
+stays flat as the list grows. "Reindex on data change" is the one-time cost of rebuilding the
+id lookup when the filtered or sorted set changes, which scales with the row count. Measured
+as the median of repeated runs on Apple Silicon with the Swift 6.3 toolchain; reproduce with:
+
+```sh
+FASTLIST_BENCHMARK=1 swift test --filter Benchmark
+```
+
 ## Why this exists
 
-macOS `List`/`Table` performance degrades sharply at scale (documented hangs of several
-seconds selecting a row in a ~1k-row table; effectively unusable past tens of thousands of
-rows). macOS, unlike iOS, wants to know every row's size and historically didn't lazily load
-rows or recycle cells the way `NSTableView` does. The community work-around has been to drop
+macOS `List` and `Table` performance falls off at scale (reported hangs of several seconds
+selecting a row in a list of about a thousand items, and unusable scrolling past tens of
+thousands). macOS, unlike iOS, wants to know every row's size and historically did not lazily
+load rows or recycle cells the way `NSTableView` does. The common workaround has been to drop
 down to AppKit and hand-roll an `NSViewRepresentable` per app.
 
-`FastList` is that bridge, packaged and maintained — with the interaction features the
+`FastList` is that bridge, packaged and maintained, with the interaction features the
 hand-rolled versions usually skip.
 
 ### Compared to the alternatives
 
-| | `List` / `Table` (native) | AppKit, hand-rolled | **FastList** |
-|---|---|---|---|
-| Performance on 10k+ rows | Poor | Good | **Good** |
-| SwiftUI cell content | n/a (is SwiftUI) | via `NSHostingView` | **via `NSHostingView`** |
-| SwiftUI-first declarative API | Yes | No | **Yes** |
-| Selection binding | Yes | DIY | **Yes (single & multi)** |
-| Double-click | Awkward | DIY | **Yes** |
-| Return / Enter to open | No | DIY | **Yes** |
-| Swipe actions | `List` only | DIY | **Yes (both edges, SF Symbols)** |
-| Right-click menu | Yes | DIY | **Yes (native, focus ring)** |
-| Drag & drop | Limited | DIY | **Yes (pasteboard payload + session hooks)** |
-| Scroll-position restore | No | DIY | **Yes (`onTopRowChange` / `scrollToRow`)** |
-| Automatic row heights | Yes (slow) | DIY | **Yes** |
+|                              | `List` / `Table` (native) | AppKit, hand-rolled | FastList                          |
+| ---------------------------- | ------------------------- | ------------------- | --------------------------------- |
+| Performance on 10k+ rows     | Poor                      | Good                | Good                              |
+| SwiftUI cell content         | n/a (is SwiftUI)          | via `NSHostingView` | via `NSHostingView`               |
+| SwiftUI-first declarative API| Yes                       | No                  | Yes                               |
+| Selection binding            | Yes                       | DIY                 | Yes (single and multi)            |
+| Double-click                 | Awkward                   | DIY                 | Yes                               |
+| Return / Enter to open       | No                        | DIY                 | Yes                               |
+| Swipe actions                | `List` only               | DIY                 | Yes (both edges, SF Symbols)      |
+| Right-click menu             | Yes                       | DIY                 | Yes (native, focus ring)          |
+| Drag and drop                | Limited                   | DIY                 | Yes (pasteboard payload, session) |
+| Scroll-position restore      | No                        | DIY                 | Yes (`onTopRowChange`)            |
+| Automatic row heights        | Yes (slow)                | DIY                 | Yes                               |
 
 ## Installation
 
@@ -78,10 +100,11 @@ Requires **macOS 13+** and Swift 5.9+.
 swift run FastListDemo
 ```
 
-Launches a window with 50,000 rows you can filter, multi-select, swipe, and open — instantly.
-Or open `Package.swift` in Xcode and run the `FastListDemo` scheme.
+Launches a window with 50,000 rows you can filter, multi-select, swipe, and open. Or open
+`Package.swift` in Xcode and run the `FastListDemo` scheme.
 
-API documentation lives in the bundled DocC catalog: in Xcode, **Product ▸ Build Documentation**.
+API documentation lives in the bundled DocC catalog: in Xcode, choose Product then Build
+Documentation.
 
 ## Usage
 
@@ -99,15 +122,15 @@ FastList(rows) { row in RowView(row) }
 ```
 
 `rows` is `[Item]` where `Item: Identifiable`. Filter and sort it yourself before handing it
-over — `FastList` renders exactly what you pass.
+over; FastList renders exactly what you pass.
 
-### The hit-testing rule (important)
+### Hit-testing
 
 Each row hosts your SwiftUI view inside an `NSHostingView`. For the table's native click
-selection to work, the **non-interactive** parts of the row must be hit-transparent — apply
-`.allowsHitTesting(false)` to them so a left click falls through to the table. Genuinely
-interactive controls inside the row (a `Toggle`, a favorite star `Button`) keep working
-normally; just don't make the whole row swallow clicks.
+selection to work, the non-interactive parts of the row need to be hit-transparent: apply
+`.allowsHitTesting(false)` to them so a left click falls through to the table. Interactive
+controls inside the row (a `Toggle`, a favorite star `Button`) still receive their clicks
+normally; just avoid making the whole row swallow clicks.
 
 ### Swipe actions
 
@@ -120,8 +143,8 @@ normally; just don't make the whole row swallow clicks.
 }
 ```
 
-`NSTableViewRowAction` renders an image **or** a title, never both — when you set
-`systemImage`, the `title` is used for VoiceOver only.
+`NSTableViewRowAction` renders an image or a title, never both. When you set `systemImage`,
+the `title` is used for VoiceOver.
 
 ### Right-click menu
 
@@ -133,10 +156,10 @@ normally; just don't make the whole row swallow clicks.
 }
 ```
 
-The closure runs per right-clicked row, so you can build single-row vs. multi-selection
-menus by reading your own selection state.
+The closure runs per right-clicked row, so you can build single-row or multi-selection menus
+by reading your own selection state.
 
-### Drag & drop
+### Drag and drop
 
 ```swift
 .onRowDrag { row in
@@ -150,7 +173,7 @@ menus by reading your own selection state.
 
 The pasteboard payload is built at the AppKit layer (the hosted SwiftUI content is
 hit-transparent, which disables a SwiftUI `.draggable`). The session hooks let the host
-inspect the drag and react without leaking app-specific pasteboard types into the list.
+inspect the drag and react without app-specific pasteboard types leaking into the list.
 
 ### Scroll-position restore
 
@@ -161,21 +184,21 @@ inspect the drag and react without leaking app-specific pasteboard types into th
 
 ## How it works
 
-- One `NSTableColumn`, header hidden, `usesAutomaticRowHeights` on — so it behaves like a
+- One `NSTableColumn`, header hidden, `usesAutomaticRowHeights` on, so it behaves like a
   single-column `List` with variable-height rows.
 - Rows are recycled `NSTableCellView`s, each hosting your SwiftUI view in an `NSHostingView`
   sized to its intrinsic content height.
-- The coordinator keeps an `id → row` index so selection and `scrollToRow` are O(1), and a
+- The coordinator keeps an id-to-row index so selection and `scrollToRow` are O(1), and a
   re-entrancy guard stops the SwiftUI binding and the table's selection from ping-ponging.
-- `reloadData` only runs when the **row set** changes (filter / sort / refresh), never on a
-  bare selection change — which is the whole point.
+- `reloadData` runs only when the row set changes (filter, sort, refresh), not on a bare
+  selection change.
 
-## Requirements & caveats
+## Requirements and caveats
 
-- **macOS only.** This wraps AppKit; there is no iOS code path.
+- macOS only. This wraps AppKit; there is no iOS code path.
 - Rows must be `Identifiable` with a `Hashable` id.
 - Make non-interactive row content hit-transparent (see above).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
