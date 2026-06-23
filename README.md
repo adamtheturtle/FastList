@@ -59,7 +59,7 @@ hand-rolled versions usually skip.
 Swift Package Manager:
 
 ```swift
-.package(url: "https://github.com/OWNER/FastList.git", from: "0.1.0")
+.package(url: "https://github.com/adamtheturtle/FastList.git", from: "0.1.0")
 ```
 
 ```swift
@@ -67,6 +67,17 @@ Swift Package Manager:
 ```
 
 Requires **macOS 13+** and Swift 5.9+.
+
+### Try the demo
+
+```sh
+swift run FastListDemo
+```
+
+Launches a window with 50,000 rows you can filter, multi-select, swipe, and open — instantly.
+Or open `Package.swift` in Xcode and run the `FastListDemo` scheme.
+
+API documentation lives in the bundled DocC catalog: in Xcode, **Product ▸ Build Documentation**.
 
 ## Usage
 

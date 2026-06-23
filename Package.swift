@@ -11,6 +11,7 @@ let package = Package(
     ],
     targets: [
         .target(name: "FastList"),
+        .executableTarget(name: "FastListDemo", dependencies: ["FastList"]),
         .testTarget(name: "FastListTests", dependencies: ["FastList"])
     ]
 )
