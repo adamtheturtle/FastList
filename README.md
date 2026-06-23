@@ -2,6 +2,8 @@
 
 A drop-in replacement for SwiftUI's `List` on **macOS**, backed by `NSTableView`.
 
+[**API documentation**](https://adamtheturtle.github.io/FastList/documentation/fastlist/)
+
 ![FastList demo showing 50,000 rows that scroll and select instantly](Resources/demo.png)
 
 > The bundled `FastListDemo` showing 50,000 rows that filter, select, and scroll instantly.
@@ -103,8 +105,9 @@ swift run FastListDemo
 Launches a window with 50,000 rows you can filter, multi-select, swipe, and open. Or open
 `Package.swift` in Xcode and run the `FastListDemo` scheme.
 
-API documentation lives in the bundled DocC catalog: in Xcode, choose Product then Build
-Documentation.
+API documentation is hosted at
+[adamtheturtle.github.io/FastList](https://adamtheturtle.github.io/FastList/documentation/fastlist/).
+It is also in the bundled DocC catalog: in Xcode, choose Product then Build Documentation.
 
 ## Usage
 

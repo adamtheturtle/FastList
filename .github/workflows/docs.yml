@@ -1,0 +1,53 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build DocC
+    runs-on: macos-15
+    env:
+      FASTLIST_BUILD_DOCS: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate documentation
+        run: |
+          swift package --allow-writing-to-directory docs \
+            generate-documentation \
+            --target FastList \
+            --disable-indexing \
+            --transform-for-static-hosting \
+            --hosting-base-path FastList \
+            --output-path docs
+
+      - name: Add root redirect to the documentation landing page
+        run: |
+          printf '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=documentation/fastlist/"></head></html>' > docs/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
