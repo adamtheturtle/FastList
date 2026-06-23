@@ -2,6 +2,10 @@
 
 A drop-in replacement for SwiftUI's `List` on **macOS**, backed by `NSTableView`.
 
+![FastList demo — 50,000 rows that scroll and select instantly](Resources/demo.png)
+
+> The bundled `FastListDemo` showing 50,000 rows that filter, select, and scroll instantly.
+
 SwiftUI's `List` and `Table` rebuild every visible row's body on each selection change and
 stall badly on large data sets — selecting a row in a list of a few thousand items can hang
 for seconds. `FastList` instead materializes and recycles only the **visible** rows, the way
