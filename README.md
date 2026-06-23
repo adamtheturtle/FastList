@@ -33,6 +33,10 @@ FastList(people, selection: $selection) { person in
 }
 ```
 
+Selection (single, multiple, or none), swipe actions, right-click menus, drag and drop, and
+scroll-position restore are all covered in the
+[API documentation](https://adamtheturtle.github.io/FastList/documentation/fastlist/).
+
 ## Benchmark
 
 Selecting a row costs the same whether the list holds a thousand rows or a million, because
@@ -66,8 +70,6 @@ down to AppKit and hand-roll an `NSViewRepresentable` per app.
 `FastList` is that bridge, packaged and maintained, with the interaction features the
 hand-rolled versions usually skip.
 
-### Compared to the alternatives
-
 |                              | `List` / `Table` (native) | AppKit, hand-rolled | FastList                          |
 | ---------------------------- | ------------------------- | ------------------- | --------------------------------- |
 | Performance on 10k+ rows     | Poor                      | Good                | Good                              |
@@ -79,7 +81,7 @@ hand-rolled versions usually skip.
 | Swipe actions                | `List` only               | DIY                 | Yes (both edges, SF Symbols)      |
 | Right-click menu             | Yes                       | DIY                 | Yes (native, focus ring)          |
 | Drag and drop                | Limited                   | DIY                 | Yes (pasteboard payload, session) |
-| Scroll-position restore      | No                        | DIY                 | Yes (`onTopRowChange`)            |
+| Scroll-position restore      | No                        | DIY                 | Yes                               |
 | Automatic row heights        | Yes (slow)                | DIY                 | Yes                               |
 
 ## Installation
@@ -96,7 +98,7 @@ Swift Package Manager:
 
 Requires **macOS 13+** and Swift 5.9+.
 
-### Try the demo
+## Try the demo
 
 ```sh
 swift run FastListDemo
@@ -105,96 +107,12 @@ swift run FastListDemo
 Launches a window with 50,000 rows you can filter, multi-select, swipe, and open. Or open
 `Package.swift` in Xcode and run the `FastListDemo` scheme.
 
-API documentation is hosted at
-[adamtheturtle.github.io/FastList](https://adamtheturtle.github.io/FastList/documentation/fastlist/).
-It is also in the bundled DocC catalog: in Xcode, choose Product then Build Documentation.
-
-## Usage
-
-### Selection
-
-```swift
-// Multiple selection
-FastList(rows, selection: $selectedIDs) { row in RowView(row) }      // Binding<Set<ID>>
-
-// Single selection
-FastList(rows, selection: $selectedID) { row in RowView(row) }       // Binding<ID?>
-
-// No selection
-FastList(rows) { row in RowView(row) }
-```
-
-`rows` is `[Item]` where `Item: Identifiable`. Filter and sort it yourself before handing it
-over; FastList renders exactly what you pass.
-
-### Hit-testing
+## Hit-testing
 
 Each row hosts your SwiftUI view inside an `NSHostingView`. For the table's native click
 selection to work, the non-interactive parts of the row need to be hit-transparent: apply
 `.allowsHitTesting(false)` to them so a left click falls through to the table. Interactive
-controls inside the row (a `Toggle`, a favorite star `Button`) still receive their clicks
-normally; just avoid making the whole row swallow clicks.
-
-### Swipe actions
-
-```swift
-.swipeActions(edge: .leading) { row in
-    [SwipeAction(title: "Flag", tint: .yellow, systemImage: "flag.fill") { flag(row) }]
-}
-.swipeActions(edge: .trailing) { row in
-    [SwipeAction(title: "Delete", role: .destructive, systemImage: "trash") { delete(row) }]
-}
-```
-
-`NSTableViewRowAction` renders an image or a title, never both. When you set `systemImage`,
-the `title` is used for VoiceOver.
-
-### Right-click menu
-
-```swift
-.rowContextMenu { row in
-    [.button(title: "Open") { open(row) },
-     .separator,
-     .button(title: "Delete", isEnabled: row.isDeletable) { delete(row) }]
-}
-```
-
-The closure runs per right-clicked row, so you can build single-row or multi-selection menus
-by reading your own selection state.
-
-### Drag and drop
-
-```swift
-.onRowDrag { row in
-    let item = NSPasteboardItem()
-    item.setString(row.url.absoluteString, forType: .URL)
-    return item            // return nil to make a row non-draggable
-}
-.onDragSession(began: { session in revealDropZoneIfNeeded(session) },
-               ended: { hideDropZone() })
-```
-
-The pasteboard payload is built at the AppKit layer (the hosted SwiftUI content is
-hit-transparent, which disables a SwiftUI `.draggable`). The session hooks let the host
-inspect the drag and react without app-specific pasteboard types leaking into the list.
-
-### Scroll-position restore
-
-```swift
-.onTopRowChange { topID in defaults.scrollAnchor = topID }   // persist as the user scrolls
-.scrollToRow(id: restoredAnchor) { restoredAnchor = nil }    // restore once on launch
-```
-
-## How it works
-
-- One `NSTableColumn`, header hidden, `usesAutomaticRowHeights` on, so it behaves like a
-  single-column `List` with variable-height rows.
-- Rows are recycled `NSTableCellView`s, each hosting your SwiftUI view in an `NSHostingView`
-  sized to its intrinsic content height.
-- The coordinator keeps an id-to-row index so selection and `scrollToRow` are O(1), and a
-  re-entrancy guard stops the SwiftUI binding and the table's selection from ping-ponging.
-- `reloadData` runs only when the row set changes (filter, sort, refresh), not on a bare
-  selection change.
+controls inside the row (a `Toggle`, a favorite star `Button`) still receive their clicks.
 
 ## Requirements and caveats
 

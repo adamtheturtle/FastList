@@ -8,15 +8,16 @@ import SwiftUI
 
 /// A drop-in replacement for SwiftUI's `List` on macOS, backed by `NSTableView`.
 ///
-/// SwiftUI's `List` / `Table` rebuild every visible row's body on each selection change and
-/// stall badly on large data sets — selecting a row in a list of a few thousand items can
-/// hang for seconds. `FastList` instead materializes and recycles only the *visible* rows
-/// the way Mail's message list does, so selection and scrolling stay instant no matter how
-/// long the list is.
+/// SwiftUI's `List` and `Table` rebuild every visible row's body on each selection change and
+/// slow down sharply on large data sets. Selecting a row in a list of a few thousand items can
+/// hang for seconds. `FastList` instead materializes and recycles only the visible rows the
+/// way Mail's message list does, so selection and scrolling stay fast no matter how long the
+/// list is.
 ///
 /// ```swift
 /// FastList(rows, selection: $selection) { row in
 ///     RowView(row)
+///         .allowsHitTesting(false) // let clicks fall through to the table
 /// }
 /// .onDoubleClick { open($0) }
 /// .onReturnKey { open($0) }
@@ -25,13 +26,37 @@ import SwiftUI
 /// }
 /// ```
 ///
+/// ## Selection
+///
+/// Pass a binding to drive selection, or omit it for a non-selectable list. `rows` is any
+/// `[Item]` where `Item: Identifiable`; filter and sort it yourself before handing it over,
+/// because `FastList` renders exactly what you pass.
+///
+/// ```swift
+/// FastList(rows, selection: $selectedIDs) { RowView($0) }  // Binding<Set<ID>>
+/// FastList(rows, selection: $selectedID)  { RowView($0) }  // Binding<ID?>
+/// FastList(rows) { RowView($0) }                           // no selection
+/// ```
+///
 /// ## Hit-testing
 ///
 /// Each row hosts its SwiftUI content in an `NSHostingView`. For native table selection to
-/// work, the hosted content must be **hit-transparent except for its own interactive
-/// controls** — apply `.allowsHitTesting(false)` to the non-interactive parts so a left
-/// click falls through to the table. Interactive controls inside the row (a toggle, a
-/// star) still receive their clicks normally.
+/// work, the non-interactive parts of the row need to be hit-transparent: apply
+/// `.allowsHitTesting(false)` to them so a left click falls through to the table. Interactive
+/// controls inside the row (a `Toggle`, a favorite star `Button`) still receive their clicks
+/// normally; just avoid making the whole row swallow clicks.
+///
+/// ## How it works
+///
+/// - One `NSTableColumn`, header hidden, `usesAutomaticRowHeights` on, so it behaves like a
+///   single-column `List` with variable-height rows.
+/// - Rows are recycled `NSTableCellView`s, each hosting your SwiftUI view in an
+///   `NSHostingView` sized to its intrinsic content height.
+/// - The coordinator keeps an id-to-row index so selection and ``scrollToRow(id:then:)`` are
+///   O(1), and a re-entrancy guard stops the SwiftUI binding and the table's selection from
+///   ping-ponging.
+/// - `reloadData` runs only when the row set changes (filter, sort, refresh), not on a bare
+///   selection change.
 public struct FastList<Item: Identifiable>: NSViewRepresentable where Item.ID: Hashable {
     /// The rows to show, already filtered and sorted by the caller.
     let items: [Item]
@@ -94,7 +119,16 @@ public struct FastList<Item: Identifiable>: NSViewRepresentable where Item.ID: H
         copy { $0.onReturnKey = action }
     }
 
-    /// Adds swipe actions to one edge of every row.
+    /// Adds swipe actions to one edge of every row, rendered as `NSTableViewRowAction`s.
+    ///
+    /// ```swift
+    /// .swipeActions(edge: .leading) { row in
+    ///     [SwipeAction(title: "Flag", tint: .yellow, systemImage: "flag.fill") { flag(row) }]
+    /// }
+    /// .swipeActions(edge: .trailing) { row in
+    ///     [SwipeAction(title: "Delete", role: .destructive, systemImage: "trash") { delete(row) }]
+    /// }
+    /// ```
     ///
     /// - Parameters:
     ///   - edge: The edge the actions are revealed from. Defaults to `.trailing`.
@@ -112,22 +146,46 @@ public struct FastList<Item: Identifiable>: NSViewRepresentable where Item.ID: H
         }
     }
 
-    /// Adds a native right-click menu to every row. The closure decides the menu for a
-    /// given row (reading your own selection for single-row vs. multi-selection menus).
+    /// Adds a native right-click menu to every row. The closure runs per right-clicked row,
+    /// so you can build single-row or multi-selection menus by reading your own selection
+    /// state.
+    ///
+    /// ```swift
+    /// .rowContextMenu { row in
+    ///     [.button(title: "Open") { open(row) },
+    ///      .separator,
+    ///      .button(title: "Delete", isEnabled: row.isDeletable) { delete(row) }]
+    /// }
+    /// ```
     public func rowContextMenu(_ items: @escaping (Item) -> [MenuItem]) -> Self {
         copy { $0.contextMenu = items }
     }
 
     /// Makes rows draggable. Return the pasteboard payload for a row, or `nil` to make that
-    /// row non-draggable. Built at the AppKit layer because the hosted SwiftUI content is
+    /// row non-draggable.
+    ///
+    /// The payload is built at the AppKit layer because the hosted SwiftUI content is
     /// hit-transparent, which disables a SwiftUI `.draggable`.
+    ///
+    /// ```swift
+    /// .onRowDrag { row in
+    ///     let item = NSPasteboardItem()
+    ///     item.setString(row.url.absoluteString, forType: .URL)
+    ///     return item            // return nil to make a row non-draggable
+    /// }
+    /// ```
     public func onRowDrag(_ pasteboardItem: @escaping (Item) -> NSPasteboardItem?) -> Self {
         copy { $0.pasteboardItem = pasteboardItem }
     }
 
-    /// Observes the lifetime of a row drag — `began` receives the dragging session so the
-    /// host can inspect its pasteboard and react (e.g. reveal a drop zone), `ended` fires on
-    /// drop or cancel. Keeps app-specific pasteboard types out of the list itself.
+    /// Observes the lifetime of a row drag. `began` receives the dragging session so the host
+    /// can inspect its pasteboard and react (for example, reveal a drop zone); `ended` fires
+    /// on drop or cancel. Keeps app-specific pasteboard types out of the list itself.
+    ///
+    /// ```swift
+    /// .onDragSession(began: { session in revealDropZoneIfNeeded(session) },
+    ///                ended: { hideDropZone() })
+    /// ```
     public func onDragSession(
         began: @escaping (NSDraggingSession) -> Void,
         ended: @escaping () -> Void = {}
@@ -139,14 +197,24 @@ public struct FastList<Item: Identifiable>: NSViewRepresentable where Item.ID: H
     }
 
     /// Reports the id of the row at the top of the viewport whenever a user scroll settles,
-    /// so you can persist and restore the free-scroll position across launches. `nil` when
-    /// the list is empty.
+    /// so you can persist and restore the free-scroll position across launches. The id is
+    /// `nil` when the list is empty.
+    ///
+    /// Pair it with ``scrollToRow(id:then:)`` to restore the position on the next launch:
+    ///
+    /// ```swift
+    /// .onTopRowChange { topID in defaults.scrollAnchor = topID }
+    /// ```
     public func onTopRowChange(_ action: @escaping (Item.ID?) -> Void) -> Self {
         copy { $0.onTopRowChange = action }
     }
 
-    /// Scrolls a row into view once (e.g. a restored selection on launch). `then` is called
-    /// after the scroll has been honored so you can clear the target.
+    /// Scrolls a row into view once (for example, a restored selection on launch). `then` is
+    /// called after the scroll has been honored so you can clear the target.
+    ///
+    /// ```swift
+    /// .scrollToRow(id: restoredAnchor) { restoredAnchor = nil }
+    /// ```
     public func scrollToRow(id: Item.ID?, then: @escaping () -> Void = {}) -> Self {
         copy {
             $0.scrollToID = id
