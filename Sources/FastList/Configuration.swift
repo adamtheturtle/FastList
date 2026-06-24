@@ -3,7 +3,9 @@
 //  FastList
 //
 
-import AppKit
+#if os(macOS)
+    import AppKit
+#endif
 import SwiftUI
 
 /// The visual / behavioral role of a swipe action.
@@ -65,8 +67,16 @@ struct FastListConfiguration<Item: Identifiable> {
     var leadingSwipe: ((Item) -> [SwipeAction])?
     var trailingSwipe: ((Item) -> [SwipeAction])?
     var contextMenu: ((Item) -> [MenuItem])?
-    var pasteboardItem: ((Item) -> NSPasteboardItem?)?
-    var onDragSessionBegan: ((NSDraggingSession) -> Void)?
+    /// A cross-platform drag payload as a `URL` (e.g. a pad's web URL). On iOS it drives a
+    /// native `.draggable` so a row can be dragged into Safari, Notes, or a Split View; on
+    /// macOS the richer `pasteboardItem` path below is used instead.
+    var dragURL: ((Item) -> URL?)?
+    // The drag payload/session callbacks are typed in AppKit (NSPasteboardItem /
+    // NSDraggingSession), so they exist only on macOS. iPad row dragging uses `dragURL`.
+    #if os(macOS)
+        var pasteboardItem: ((Item) -> NSPasteboardItem?)?
+        var onDragSessionBegan: ((NSDraggingSession) -> Void)?
+    #endif
     var onDragSessionEnded: (() -> Void)?
     var onTopRowChange: ((Item.ID?) -> Void)?
     var scrollToID: Item.ID?

@@ -5,7 +5,8 @@ import PackageDescription
 let package = Package(
     name: "FastList",
     platforms: [
-        .macOS(.v13)
+        .macOS(.v13),
+        .iOS(.v17)
     ],
     products: [
         .library(name: "FastList", targets: ["FastList"])

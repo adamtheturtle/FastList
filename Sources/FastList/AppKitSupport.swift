@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  AppKitSupport.swift
 //  FastList
@@ -84,3 +85,4 @@ extension NSUserInterfaceItemIdentifier {
     static let fastListCell = NSUserInterfaceItemIdentifier("FastListHostingCell")
     static let fastListColumn = NSUserInterfaceItemIdentifier("FastListColumn")
 }
+#endif

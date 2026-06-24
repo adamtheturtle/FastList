@@ -1,3 +1,4 @@
+#if os(macOS)
 //
 //  Coordinator.swift
 //  FastList
@@ -194,3 +195,4 @@ extension FastList {
         }
     }
 }
+#endif

@@ -3,10 +3,13 @@
 //  FastList
 //
 
-import AppKit
+#if os(macOS)
+    import AppKit
+#endif
 import SwiftUI
 
-/// A drop-in replacement for SwiftUI's `List` on macOS, backed by `NSTableView`.
+/// A drop-in replacement for SwiftUI's `List`, backed by `NSTableView` on macOS for
+/// large-list performance and by a native SwiftUI `List` on iOS / iPadOS.
 ///
 /// SwiftUI's `List` and `Table` rebuild every visible row's body on each selection change and
 /// slow down sharply on large data sets. Selecting a row in a list of a few thousand items can
@@ -57,7 +60,7 @@ import SwiftUI
 ///   ping-ponging.
 /// - `reloadData` runs only when the row set changes (filter, sort, refresh), not on a bare
 ///   selection change.
-public struct FastList<Item: Identifiable>: NSViewRepresentable where Item.ID: Hashable {
+public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// The rows to show, already filtered and sorted by the caller.
     let items: [Item]
     @Binding var selection: Set<Item.ID>
@@ -161,6 +164,14 @@ public struct FastList<Item: Identifiable>: NSViewRepresentable where Item.ID: H
         copy { $0.contextMenu = items }
     }
 
+    /// Makes rows draggable on iOS/iPadOS by returning a `URL` payload (e.g. a pad's web
+    /// URL), or `nil` for a non-draggable row. Drives a native SwiftUI `.draggable`, so a
+    /// row can be dragged into Safari, Notes, or a Split View. On macOS the richer
+    /// ``onRowDrag(_:)`` pasteboard path is used instead, so this is a no-op there.
+    public func onRowDragURL(_ url: @escaping (Item) -> URL?) -> Self {
+        copy { $0.dragURL = url }
+    }
+
     /// Makes rows draggable. Return the pasteboard payload for a row, or `nil` to make that
     /// row non-draggable.
     ///
@@ -174,9 +185,11 @@ public struct FastList<Item: Identifiable>: NSViewRepresentable where Item.ID: H
     ///     return item            // return nil to make a row non-draggable
     /// }
     /// ```
+    #if os(macOS)
     public func onRowDrag(_ pasteboardItem: @escaping (Item) -> NSPasteboardItem?) -> Self {
         copy { $0.pasteboardItem = pasteboardItem }
     }
+    #endif
 
     /// Observes the lifetime of a row drag. `began` receives the dragging session so the host
     /// can inspect its pasteboard and react (for example, reveal a drop zone); `ended` fires
@@ -186,6 +199,7 @@ public struct FastList<Item: Identifiable>: NSViewRepresentable where Item.ID: H
     /// .onDragSession(began: { session in revealDropZoneIfNeeded(session) },
     ///                ended: { hideDropZone() })
     /// ```
+    #if os(macOS)
     public func onDragSession(
         began: @escaping (NSDraggingSession) -> Void,
         ended: @escaping () -> Void = {}
@@ -195,6 +209,7 @@ public struct FastList<Item: Identifiable>: NSViewRepresentable where Item.ID: H
             $0.onDragSessionEnded = ended
         }
     }
+    #endif
 
     /// Reports the id of the row at the top of the viewport whenever a user scroll settles,
     /// so you can persist and restore the free-scroll position across launches. The id is
@@ -228,8 +243,9 @@ public struct FastList<Item: Identifiable>: NSViewRepresentable where Item.ID: H
         return copy
     }
 
-    // MARK: NSViewRepresentable
+    // MARK: NSViewRepresentable (macOS)
 
+    #if os(macOS)
     public func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
@@ -302,4 +318,89 @@ public struct FastList<Item: Identifiable>: NSViewRepresentable where Item.ID: H
             DispatchQueue.main.async { configuration.onScrolledToID?() }
         }
     }
+    #endif
 }
+
+#if os(macOS)
+    extension FastList: NSViewRepresentable {}
+#else
+    // MARK: View (iOS / iPadOS)
+
+    /// The iPad backend: a native SwiftUI `List`. SwiftUI's `List` is `UITableView`-backed
+    /// and recycles rows, so the large-list selection cost that motivated the AppKit
+    /// `NSTableView` path on macOS isn't a problem here - the platform list is already
+    /// fast. Selection (driving a `NavigationSplitView` detail), per-row swipe actions, and
+    /// the per-row context menu map straight onto the same `FastList` configuration. The
+    /// macOS-only affordances - double-click / Return-to-open (iPad opens via selection),
+    /// AppKit row dragging, and free-scroll anchor restore - are intentionally not wired
+    /// here yet.
+    extension FastList: View {
+        public var body: some View {
+            List(selection: $selection) {
+                ForEach(items) { item in
+                    row(for: item)
+                }
+            }
+            .listStyle(.plain)
+        }
+
+        @ViewBuilder
+        private func row(for item: Item) -> some View {
+            let leading = configuration.leadingSwipe?(item) ?? []
+            let trailing = configuration.trailingSwipe?(item) ?? []
+            let menu = configuration.contextMenu?(item) ?? []
+            let dragURL = configuration.dragURL?(item)
+
+            let base = rowContent(item)
+                .tag(item.id)
+                .swipeActions(edge: .leading) { swipeButtons(leading) }
+                .swipeActions(edge: .trailing) { swipeButtons(trailing) }
+
+            // Only attach a context menu when one is configured, so unconfigured rows
+            // don't long-press into an empty menu.
+            let withMenu = Group {
+                if menu.isEmpty {
+                    base
+                } else {
+                    base.contextMenu { contextButtons(menu) }
+                }
+            }
+
+            // A draggable row (drag a pad/question URL into Safari, Notes, or Split View)
+            // when a URL payload is configured.
+            if let dragURL {
+                withMenu.draggable(dragURL)
+            } else {
+                withMenu
+            }
+        }
+
+        @ViewBuilder
+        private func swipeButtons(_ actions: [SwipeAction]) -> some View {
+            ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
+                Button(role: action.role == .destructive ? .destructive : nil) {
+                    action.action()
+                } label: {
+                    if let systemImage = action.systemImage {
+                        Label(action.title, systemImage: systemImage)
+                    } else {
+                        Text(action.title)
+                    }
+                }
+                .tint(action.tint)
+            }
+        }
+
+        @ViewBuilder
+        private func contextButtons(_ items: [MenuItem]) -> some View {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                switch item {
+                case let .button(title, isEnabled, action):
+                    Button(title, action: action).disabled(!isEnabled)
+                case .separator:
+                    Divider()
+                }
+            }
+        }
+    }
+#endif
