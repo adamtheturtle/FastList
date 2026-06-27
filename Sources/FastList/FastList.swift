@@ -224,6 +224,29 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.onTopRowChange = action }
     }
 
+    /// Fires when the last visible row comes within `threshold` rows of the end of the data
+    /// as a user scroll settles — the trigger for load-more / infinite-scroll paging.
+    ///
+    /// Unlike ``onTopRowChange``, this reflects the *bottom* of the viewport, so it fires
+    /// correctly on any window size without estimating the visible-row count from row
+    /// heights. A `threshold` of `0` fires only once the very last row is on screen; a larger
+    /// threshold loads the next page before the user hits the bottom.
+    ///
+    /// ```swift
+    /// .onReachEnd(threshold: 10) { loadNextPage() }
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - threshold: How many rows from the end the last visible row must reach before
+    ///     firing. Defaults to `0` (the last row must be visible).
+    ///   - perform: Runs when the bottom of the viewport reaches the threshold.
+    public func onReachEnd(threshold: Int = 0, perform: @escaping () -> Void) -> Self {
+        copy {
+            $0.reachEndThreshold = threshold
+            $0.onReachEnd = perform
+        }
+    }
+
     /// Scrolls a row into view once (for example, a restored selection on launch). `then` is
     /// called after the scroll has been honored so you can clear the target.
     ///

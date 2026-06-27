@@ -122,14 +122,26 @@ extension FastList {
             parent.configuration.onReturnKey?(items[row])
         }
 
-        /// A user scroll settled — report the id of the row now at the top of the viewport.
+        /// A user scroll settled — report the row now at the top of the viewport, and whether the
+        /// bottom of the viewport has neared the end of the data (for load-more paging).
         @objc func liveScrollEnded() {
-            guard let onTopRowChange = parent.configuration.onTopRowChange, let tableView else { return }
+            guard let tableView else { return }
 
             let visible = tableView.rows(in: tableView.visibleRect)
-            guard visible.length > 0, items.indices.contains(visible.location) else { return }
+            guard visible.length > 0 else { return }
 
-            onTopRowChange(items[visible.location].id)
+            if let onTopRowChange = parent.configuration.onTopRowChange,
+               items.indices.contains(visible.location) {
+                onTopRowChange(items[visible.location].id)
+            }
+
+            if let onReachEnd = parent.configuration.onReachEnd {
+                let lastVisible = NSMaxRange(visible) - 1
+                if items.indices.contains(lastVisible),
+                   lastVisible >= items.count - 1 - parent.configuration.reachEndThreshold {
+                    onReachEnd()
+                }
+            }
         }
 
         // MARK: Swipe actions

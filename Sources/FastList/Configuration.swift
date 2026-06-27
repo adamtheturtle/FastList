@@ -79,6 +79,12 @@ struct FastListConfiguration<Item: Identifiable> {
     #endif
     var onDragSessionEnded: (() -> Void)?
     var onTopRowChange: ((Item.ID?) -> Void)?
+    /// Fired when the last visible row comes within `reachEndThreshold` rows of the end, the
+    /// signal for load-more paging. Kept separate from `onTopRowChange` because the bottom of
+    /// the viewport, not the top, is what tells a pager it's near the end.
+    var onReachEnd: (() -> Void)?
+    /// How many rows from the end the last visible row must reach before `onReachEnd` fires.
+    var reachEndThreshold = 0
     var scrollToID: Item.ID?
     var onScrolledToID: (() -> Void)?
 }

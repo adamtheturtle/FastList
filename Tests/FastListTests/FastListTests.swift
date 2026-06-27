@@ -84,6 +84,18 @@ private struct Row: Identifiable, Equatable {
         #expect(base.configuration.onDoubleClick == nil)
     }
 
+    @Test func onReachEndStoresThresholdAndAction() {
+        let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+        #expect(base.configuration.onReachEnd == nil)
+        #expect(base.configuration.reachEndThreshold == 0)
+
+        let configured = base.onReachEnd(threshold: 10) {}
+        #expect(configured.configuration.onReachEnd != nil)
+        #expect(configured.configuration.reachEndThreshold == 10)
+        // Untouched original (value semantics).
+        #expect(base.configuration.onReachEnd == nil)
+    }
+
     @Test func swipeEdgeRoutesToTheRightSlot() {
         let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
         let leading = base.swipeActions(edge: .leading) { _ in [SwipeAction(title: "Flag") {}] }

@@ -31,4 +31,5 @@
 ### Scroll position
 
 - ``FastList/FastList/onTopRowChange(_:)``
+- ``FastList/FastList/onReachEnd(threshold:perform:)``
 - ``FastList/FastList/scrollToRow(id:then:)``
