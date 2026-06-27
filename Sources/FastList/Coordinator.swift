@@ -20,6 +20,10 @@ extension FastList {
         /// bounds change (so it covers mouse-wheel/scrollbar/keyboard scrolls, not just trackpad
         /// gestures), and this de-dupes those per-frame events down to one call per actual change.
         private var lastTopRowID: Item.ID?
+        /// Whether the last bounds event already had the viewport's bottom within the load-more
+        /// threshold. `onReachEnd` fires only on the transition *into* that zone, so the per-frame
+        /// bounds stream (and sitting at the end) can't re-fire it in a runaway paging loop.
+        private var wasNearEnd = false
 
         init(_ parent: FastList) {
             self.parent = parent
@@ -152,10 +156,15 @@ extension FastList {
 
             if let onReachEnd = parent.configuration.onReachEnd {
                 let lastVisible = NSMaxRange(visible) - 1
-                if items.indices.contains(lastVisible),
-                   lastVisible >= items.count - 1 - parent.configuration.reachEndThreshold {
-                    onReachEnd()
-                }
+                let nearEnd = items.indices.contains(lastVisible)
+                    && lastVisible >= items.count - 1 - parent.configuration.reachEndThreshold
+                // Edge-triggered: fire only when the bottom first enters the threshold zone, not
+                // on every frame while it stays there. Appending a page moves the bottom away,
+                // re-arming it for the next scroll-to-end — so paging is one page per reach.
+                if nearEnd, !wasNearEnd { onReachEnd() }
+                wasNearEnd = nearEnd
+            } else {
+                wasNearEnd = false
             }
         }
 
