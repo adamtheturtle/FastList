@@ -314,12 +314,24 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         scroll.documentView = table
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
-        // Report the top visible row when a user scroll settles. didEndLiveScroll fires once
-        // per gesture — far cheaper than streaming every bounds change. The observer
-        // auto-unregisters when the coordinator deallocates (macOS 10.11+).
+        // Track the scroll position via the content view's bounds. boundsDidChange fires for
+        // EVERY scroll — trackpad, mouse wheel, scrollbar, and keyboard — so onReachEnd (load-more)
+        // and onTopRowChange work regardless of input device. didEndLiveScroll alone only covers
+        // the end of a trackpad gesture, which silently stranded mouse-wheel users on the first
+        // page. The coordinator de-dupes onTopRowChange so the per-frame stream isn't wasteful.
+        // Observers auto-unregister when the coordinator deallocates (macOS 10.11+).
+        scroll.contentView.postsBoundsChangedNotifications = true
         NotificationCenter.default.addObserver(
             context.coordinator,
-            selector: #selector(Coordinator.liveScrollEnded),
+            selector: #selector(Coordinator.scrollPositionChanged),
+            name: NSView.boundsDidChangeNotification,
+            object: scroll.contentView
+        )
+        // Also fire once when a trackpad gesture's momentum fully settles, so the final resting
+        // position is reported even if the last bounds change landed mid-deceleration.
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(Coordinator.scrollPositionChanged),
             name: NSScrollView.didEndLiveScrollNotification,
             object: scroll
         )

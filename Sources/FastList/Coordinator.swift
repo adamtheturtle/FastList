@@ -16,6 +16,10 @@ extension FastList {
         private var indexByID: [Item.ID: Int] = [:]
         /// Guards against the selection binding and the table's selection ping-ponging.
         private var isApplyingSelection = false
+        /// The last top row reported to `onTopRowChange`. The scroll callback now fires on every
+        /// bounds change (so it covers mouse-wheel/scrollbar/keyboard scrolls, not just trackpad
+        /// gestures), and this de-dupes those per-frame events down to one call per actual change.
+        private var lastTopRowID: Item.ID?
 
         init(_ parent: FastList) {
             self.parent = parent
@@ -122,9 +126,16 @@ extension FastList {
             parent.configuration.onReturnKey?(items[row])
         }
 
-        /// A user scroll settled — report the row now at the top of the viewport, and whether the
-        /// bottom of the viewport has neared the end of the data (for load-more paging).
-        @objc func liveScrollEnded() {
+        /// The scroll position changed — report the row now at the top of the viewport (when it
+        /// actually changes), and whether the bottom of the viewport has neared the end of the
+        /// data (for load-more paging).
+        ///
+        /// Fires on every `boundsDidChange`, so it covers scrolling by **any** input — trackpad,
+        /// mouse wheel, scrollbar, keyboard — not just the trackpad gesture-end that
+        /// `didEndLiveScroll` reports. `onTopRowChange` is de-duped against `lastTopRowID` so the
+        /// per-frame bounds stream collapses to one call per real change; `onReachEnd` consumers
+        /// are expected to guard their own re-entrancy (e.g. an "already loading" flag).
+        @objc func scrollPositionChanged() {
             guard let tableView else { return }
 
             let visible = tableView.rows(in: tableView.visibleRect)
@@ -132,7 +143,11 @@ extension FastList {
 
             if let onTopRowChange = parent.configuration.onTopRowChange,
                items.indices.contains(visible.location) {
-                onTopRowChange(items[visible.location].id)
+                let topID = items[visible.location].id
+                if topID != lastTopRowID {
+                    lastTopRowID = topID
+                    onTopRowChange(topID)
+                }
             }
 
             if let onReachEnd = parent.configuration.onReachEnd {
