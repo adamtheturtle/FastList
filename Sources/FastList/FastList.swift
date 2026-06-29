@@ -376,7 +376,12 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                     row(for: item)
                 }
             }
-            .listStyle(.plain)
+            // `.sidebar`, not `.plain`: the plain style draws the selection as a
+            // full-bleed rectangle that runs edge to edge and slides behind the
+            // `NavigationSplitView` sidebar column. The sidebar style insets each row
+            // and renders selection as the platform's rounded-rectangle highlight,
+            // matching the app's own sidebar list and keeping the fill off the edges.
+            .listStyle(.sidebar)
         }
 
         @ViewBuilder
