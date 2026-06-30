@@ -376,12 +376,32 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                     row(for: item)
                 }
             }
-            // `.sidebar`, not `.plain`: the plain style draws the selection as a
-            // full-bleed rectangle that runs edge to edge and slides behind the
-            // `NavigationSplitView` sidebar column. The sidebar style insets each row
-            // and renders selection as the platform's rounded-rectangle highlight,
-            // matching the app's own sidebar list and keeping the fill off the edges.
-            .listStyle(.sidebar)
+            // `.plain`, with a custom selection background (see `selectionBackground`).
+            // The earlier `.sidebar` style insets selection nicely when the list IS the
+            // primary sidebar column, but a non-sidebar *content* column on iPad lays its
+            // rows out shifted under the leading edge, clipping the first characters of
+            // each row. `.plain` lays out correctly; its default selection is a full-bleed
+            // rectangle that runs edge to edge and slides behind the `NavigationSplitView`
+            // sidebar, so we suppress it via `.listRowBackground` and draw our own inset,
+            // rounded-rectangle highlight instead — no bleed, no clipping.
+            .listStyle(.plain)
+        }
+
+        /// The per-row selection highlight: an inset, rounded-rectangle fill when the row
+        /// is selected and clear otherwise. Supplying it as the row background replaces the
+        /// plain list's default full-bleed selection, keeping the highlight off the column's
+        /// leading/trailing edges (so it can't bleed behind the split-view sidebar) and
+        /// inside the row (so it can't clip the row's content).
+        @ViewBuilder
+        private func selectionBackground(isSelected: Bool) -> some View {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.18))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+            } else {
+                Color.clear
+            }
         }
 
         @ViewBuilder
@@ -393,6 +413,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
 
             let base = rowContent(item)
                 .tag(item.id)
+                .listRowBackground(selectionBackground(isSelected: selection.contains(item.id)))
                 .swipeActions(edge: .leading) { swipeButtons(leading) }
                 .swipeActions(edge: .trailing) { swipeButtons(trailing) }
 
