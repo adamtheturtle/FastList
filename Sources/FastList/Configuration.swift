@@ -54,7 +54,12 @@ public struct SwipeAction {
 /// would never fire.
 public enum MenuItem {
     /// A clickable menu entry.
-    case button(title: String, isEnabled: Bool = true, action: () -> Void)
+    case button(
+        title: String,
+        isEnabled: Bool = true,
+        role: FastListActionRole = .normal,
+        action: () -> Void
+    )
     /// A separator line between groups of buttons.
     case separator
 }

@@ -216,7 +216,7 @@ extension FastList {
                 switch entry {
                 case .separator:
                     menu.addItem(.separator())
-                case let .button(title, isEnabled, action):
+                case let .button(title, isEnabled, _, action):
                     let menuItem = NSMenuItem(title: title, action: #selector(runMenuAction(_:)), keyEquivalent: "")
                     menuItem.target = self
                     menuItem.isEnabled = isEnabled

@@ -456,8 +456,11 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         private func contextButtons(_ items: [MenuItem]) -> some View {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 switch item {
-                case let .button(title, isEnabled, action):
-                    Button(title, action: action).disabled(!isEnabled)
+                case let .button(title, isEnabled, role, action):
+                    Button(role: role == .destructive ? .destructive : nil, action: action) {
+                        Text(title)
+                    }
+                    .disabled(!isEnabled)
                 case .separator:
                     Divider()
                 }
