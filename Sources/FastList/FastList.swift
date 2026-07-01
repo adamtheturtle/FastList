@@ -51,8 +51,9 @@ import SwiftUI
 ///
 /// ## How it works
 ///
-/// - One `NSTableColumn`, header hidden, `usesAutomaticRowHeights` on, so it behaves like a
-///   single-column `List` with variable-height rows.
+/// - One `NSTableColumn`, header hidden, with automatic row heights by default so it behaves
+///   like a single-column `List` with variable-height rows. Fixed-format rows can opt into
+///   ``rowHeight(_:)`` to skip intrinsic-height measurement during scroll.
 /// - Rows are recycled `NSTableCellView`s, each hosting your SwiftUI view in an
 ///   `NSHostingView` sized to its intrinsic content height.
 /// - The coordinator keeps an id-to-row index so selection and ``scrollToRow(id:then:)`` are
@@ -224,6 +225,25 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.onTopRowChange = action }
     }
 
+    /// Reloads visible rows when `id` changes, even if the item id sequence is unchanged.
+    ///
+    /// `FastList` normally avoids `reloadData` unless row ids change, so selection-only
+    /// updates stay cheap. Use this when row content depends on external state not captured
+    /// by `items`, such as favorite ids or read/unread state.
+    public func reloadID(_ id: some Hashable) -> Self {
+        copy { $0.reloadID = AnyHashable(id) }
+    }
+
+    /// Uses a fixed row height on the macOS `NSTableView` backend.
+    ///
+    /// By default `FastList` uses AppKit's automatic row heights so arbitrary SwiftUI row
+    /// content can size itself. Fixed-format rows can opt into a concrete height to avoid
+    /// intrinsic-height measurement while rows recycle during fast scrolling. This is a no-op
+    /// on the iOS/iPadOS SwiftUI `List` backend.
+    public func rowHeight(_ height: CGFloat?) -> Self {
+        copy { $0.rowHeight = height }
+    }
+
     /// Fires when the last visible row comes within `threshold` rows of the end of the data
     /// as a user scroll settles — the trigger for load-more / infinite-scroll paging.
     ///
@@ -277,7 +297,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         let table = KeyHandlingTableView()
         table.headerView = nil
         table.style = .inset
-        table.usesAutomaticRowHeights = true
+        configureRowHeight(for: table)
         table.allowsMultipleSelection = true
         table.allowsEmptySelection = true
         table.selectionHighlightStyle = .regular
@@ -343,6 +363,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         coordinator.parent = self
         guard let table = coordinator.tableView else { return }
 
+        configureRowHeight(for: table)
         // Only reload when the row set actually changed (filter/sort/refresh) — never on a
         // bare selection change, which is the whole point of the rewrite.
         coordinator.reloadIfNeeded(items, force: false)
@@ -351,6 +372,15 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         if let scrollToID = configuration.scrollToID, let row = coordinator.index(of: scrollToID) {
             table.scrollRowToVisible(row)
             DispatchQueue.main.async { configuration.onScrolledToID?() }
+        }
+    }
+
+    private func configureRowHeight(for table: NSTableView) {
+        if let rowHeight = configuration.rowHeight {
+            table.usesAutomaticRowHeights = false
+            if table.rowHeight != rowHeight { table.rowHeight = rowHeight }
+        } else {
+            table.usesAutomaticRowHeights = true
         }
     }
     #endif

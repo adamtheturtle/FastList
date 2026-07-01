@@ -14,6 +14,7 @@ extension FastList {
         weak var tableView: NSTableView?
         private var items: [Item] = []
         private var indexByID: [Item.ID: Int] = [:]
+        private var reloadID: AnyHashable?
         /// Guards against the selection binding and the table's selection ping-ponging.
         private var isApplyingSelection = false
         /// The last top row reported to `onTopRowChange`. The scroll callback now fires on every
@@ -39,8 +40,10 @@ extension FastList {
         // MARK: Data
 
         func reloadIfNeeded(_ newItems: [Item], force: Bool) {
-            let changed = force || newItems.map(\.id) != items.map(\.id)
+            let nextReloadID = parent.configuration.reloadID
+            let changed = force || newItems.map(\.id) != items.map(\.id) || nextReloadID != reloadID
             items = newItems
+            reloadID = nextReloadID
             indexByID = Dictionary(
                 newItems.enumerated().map { ($1.id, $0) },
                 uniquingKeysWith: { first, _ in first }

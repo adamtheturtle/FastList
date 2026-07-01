@@ -12,7 +12,7 @@ let package = Package(
         .library(name: "FastList", targets: ["FastList"])
     ],
     targets: [
-        .target(name: "FastList"),
+        .target(name: "FastList", exclude: ["Example.swift"]),
         .executableTarget(name: "FastListDemo", dependencies: ["FastList"]),
         .testTarget(name: "FastListTests", dependencies: ["FastList"])
     ]

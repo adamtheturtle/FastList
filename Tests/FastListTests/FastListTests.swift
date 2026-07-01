@@ -8,6 +8,15 @@ private struct Row: Identifiable, Equatable {
     let name: String
 }
 
+private final class CountingTableView: NSTableView {
+    var reloadCount = 0
+
+    override func reloadData() {
+        reloadCount += 1
+        super.reloadData()
+    }
+}
+
 @MainActor
 @Suite struct FastListCoordinatorTests {
     private func makeCoordinator(_ rows: [Row], selection: Set<Int> = []) -> FastList<Row>.Coordinator {
@@ -33,6 +42,26 @@ private struct Row: Identifiable, Equatable {
         coordinator.reloadIfNeeded([Row(id: 2, name: "b"), Row(id: 1, name: "a")], force: false)
         #expect(coordinator.index(of: 2) == 0)
         #expect(coordinator.index(of: 1) == 1)
+    }
+
+    @Test func reloadIDForcesReloadWithoutChangingRows() {
+        let table = CountingTableView()
+        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
+
+        var list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+            .reloadID("one")
+        let coordinator = list.makeCoordinator()
+        coordinator.tableView = table
+        coordinator.reloadIfNeeded([Row(id: 1, name: "a")], force: true)
+        #expect(table.reloadCount == 1)
+
+        coordinator.reloadIfNeeded([Row(id: 1, name: "a")], force: false)
+        #expect(table.reloadCount == 1)
+
+        list = list.reloadID("two")
+        coordinator.parent = list
+        coordinator.reloadIfNeeded([Row(id: 1, name: "a")], force: false)
+        #expect(table.reloadCount == 2)
     }
 
     @Test func duplicateIDsKeepTheFirstIndex() {
@@ -75,13 +104,19 @@ private struct Row: Identifiable, Equatable {
             .onReturnKey { _ in }
             .swipeActions(edge: .trailing) { _ in [] }
             .rowContextMenu { _ in [] }
+            .reloadID("content")
+            .rowHeight(44)
 
         #expect(configured.configuration.onDoubleClick != nil)
         #expect(configured.configuration.onReturnKey != nil)
         #expect(configured.configuration.trailingSwipe != nil)
         #expect(configured.configuration.contextMenu != nil)
+        #expect(configured.configuration.reloadID == AnyHashable("content"))
+        #expect(configured.configuration.rowHeight == 44)
         // The original value is untouched (value semantics).
         #expect(base.configuration.onDoubleClick == nil)
+        #expect(base.configuration.reloadID == nil)
+        #expect(base.configuration.rowHeight == nil)
     }
 
     @Test func onReachEndStoresThresholdAndAction() {
