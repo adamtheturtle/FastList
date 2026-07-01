@@ -92,4 +92,9 @@ struct FastListConfiguration<Item: Identifiable> {
     var reachEndThreshold = 0
     var scrollToID: Item.ID?
     var onScrolledToID: (() -> Void)?
+    /// Reloads rows when caller-controlled row-content inputs change even if row ids
+    /// did not. Selection-only updates still reuse the existing table rows.
+    var reloadID: AnyHashable?
+    /// Fixed row height for the macOS backend. Nil keeps automatic row heights.
+    var rowHeight: CGFloat?
 }
