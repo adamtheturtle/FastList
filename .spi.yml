@@ -1,5 +1,5 @@
 version: 1
 builder:
   configs:
-    - platform: macosSpm
-      documentation_targets: [FastList]
+    - documentation_targets:
+        - FastList
