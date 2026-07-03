@@ -4,7 +4,7 @@
 //
 //  A runnable showcase. `swift run FastListDemo` (or open Package.swift in Xcode and run
 //  the FastListDemo scheme) launches a 50,000-row list that stays instant to scroll, filter,
-//  and select — the whole point of the package.
+//  and select - the whole point of the package.
 //
 
 import FastList
@@ -34,7 +34,7 @@ private struct ContentView: View {
     }
     @State private var selection: Set<Int> = []
     @State private var query = ""
-    @State private var lastOpened = "—"
+    @State private var lastOpened = "-"
 
     private var visible: [Contact] {
         guard !query.isEmpty else { return contacts }
@@ -69,7 +69,7 @@ private struct ContentView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("FastList — \(visible.count) rows")
+            Text("FastList - \(visible.count) rows")
                 .font(.title2.bold())
             HStack {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)

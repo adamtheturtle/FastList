@@ -3,7 +3,7 @@
 //  AppKitSupport.swift
 //  FastList
 //
-//  The AppKit helpers backing ``FastList`` — the key-handling table subclass, the
+//  The AppKit helpers backing ``FastList`` - the key-handling table subclass, the
 //  SwiftUI-hosting cell, and the reuse identifiers. Module-internal.
 //
 
@@ -27,7 +27,7 @@ final class KeyHandlingTableView: NSTableView {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
-        // Only show the menu — and let AppKit run its native right-clicked-row highlight —
+        // Only show the menu - and let AppKit run its native right-clicked-row highlight -
         // when the click lands on a row, not the empty area below the list. `super` sets
         // `clickedRow`, draws the outline, and returns `menu`, whose items the coordinator
         // fills in via `menuNeedsUpdate(_:)`.
