@@ -31,7 +31,7 @@ private struct ExampleList: View {
                 Spacer()
             }
             .padding(.vertical, 4)
-            // The whole row is decorative — let clicks fall through to the table.
+            // The whole row is decorative - let clicks fall through to the table.
             .allowsHitTesting(false)
         }
         .onDoubleClick { person in print("open \(person.name)") }

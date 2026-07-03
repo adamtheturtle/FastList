@@ -133,12 +133,12 @@ extension FastList {
             parent.configuration.onReturnKey?(items[row])
         }
 
-        /// The scroll position changed — report the row now at the top of the viewport (when it
+        /// The scroll position changed - report the row now at the top of the viewport (when it
         /// actually changes), and whether the bottom of the viewport has neared the end of the
         /// data (for load-more paging).
         ///
-        /// Fires on every `boundsDidChange`, so it covers scrolling by **any** input — trackpad,
-        /// mouse wheel, scrollbar, keyboard — not just the trackpad gesture-end that
+        /// Fires on every `boundsDidChange`, so it covers scrolling by **any** input - trackpad,
+        /// mouse wheel, scrollbar, keyboard - not just the trackpad gesture-end that
         /// `didEndLiveScroll` reports. `onTopRowChange` is de-duped against `lastTopRowID` so the
         /// per-frame bounds stream collapses to one call per real change; `onReachEnd` consumers
         /// are expected to guard their own re-entrancy (e.g. an "already loading" flag).
@@ -163,7 +163,7 @@ extension FastList {
                     && lastVisible >= items.count - 1 - parent.configuration.reachEndThreshold
                 // Edge-triggered: fire only when the bottom first enters the threshold zone, not
                 // on every frame while it stays there. Appending a page moves the bottom away,
-                // re-arming it for the next scroll-to-end — so paging is one page per reach.
+                // re-arming it for the next scroll-to-end - so paging is one page per reach.
                 if nearEnd, !wasNearEnd { onReachEnd() }
                 wasNearEnd = nearEnd
             } else {

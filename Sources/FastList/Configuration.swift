@@ -16,7 +16,7 @@ public enum FastListActionRole: Sendable {
     case destructive
 }
 
-/// One swipe action revealed on a row edge, rendered as an `NSTableViewRowAction` — the
+/// One swipe action revealed on a row edge, rendered as an `NSTableViewRowAction` - the
 /// same control Finder and Mail use for swipe-to-delete / swipe-to-flag.
 public struct SwipeAction {
     /// The action's title. Always set so VoiceOver announces it, even when a
@@ -27,7 +27,7 @@ public struct SwipeAction {
     /// The revealed button's background color. `nil` uses the system default (grey for
     /// `.normal`, red for `.destructive`).
     public var tint: Color?
-    /// An SF Symbol shown instead of the title — the standard macOS swipe look.
+    /// An SF Symbol shown instead of the title - the standard macOS swipe look.
     /// `NSTableViewRowAction` renders an image *or* a title, never both, so when this is
     /// set the title is used only for accessibility.
     public var systemImage: String?
@@ -76,6 +76,10 @@ struct FastListConfiguration<Item: Identifiable> {
     /// native `.draggable` so a row can be dragged into Safari, Notes, or a Split View; on
     /// macOS the richer `pasteboardItem` path below is used instead.
     var dragURL: ((Item) -> URL?)?
+    /// A human-readable title for the row's iOS drag preview (e.g. a pad's name). When set,
+    /// the lifted drag chip shows this title beside a link glyph instead of snapshotting the
+    /// full-width row; `nil` falls back to a compact rendering of the `dragURL`.
+    var dragTitle: ((Item) -> String?)?
     // The drag payload/session callbacks are typed in AppKit (NSPasteboardItem /
     // NSDraggingSession), so they exist only on macOS. iPad row dragging uses `dragURL`.
     #if os(macOS)

@@ -173,6 +173,16 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.dragURL = url }
     }
 
+    /// Supplies a human-readable title for a row's iOS drag preview (e.g. a pad's name).
+    ///
+    /// Without it, `.onRowDragURL`'s lift snapshots the whole row, which inherits any
+    /// full-width / leading-padded row layout and drags as an oversized chip padded out with
+    /// empty space. With a title, the lift is a compact link chip instead. macOS uses the
+    /// AppKit drag path, so this is a no-op there.
+    public func onRowDragTitle(_ title: @escaping (Item) -> String?) -> Self {
+        copy { $0.dragTitle = title }
+    }
+
     /// Makes rows draggable. Return the pasteboard payload for a row, or `nil` to make that
     /// row non-draggable.
     ///
@@ -245,7 +255,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     }
 
     /// Fires when the last visible row comes within `threshold` rows of the end of the data
-    /// as a user scroll settles — the trigger for load-more / infinite-scroll paging.
+    /// as a user scroll settles - the trigger for load-more / infinite-scroll paging.
     ///
     /// Unlike ``onTopRowChange``, this reflects the *bottom* of the viewport, so it fires
     /// correctly on any window size without estimating the visible-row count from row
@@ -335,7 +345,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         // Track the scroll position via the content view's bounds. boundsDidChange fires for
-        // EVERY scroll — trackpad, mouse wheel, scrollbar, and keyboard — so onReachEnd (load-more)
+        // EVERY scroll - trackpad, mouse wheel, scrollbar, and keyboard - so onReachEnd (load-more)
         // and onTopRowChange work regardless of input device. didEndLiveScroll alone only covers
         // the end of a trackpad gesture, which silently stranded mouse-wheel users on the first
         // page. The coordinator de-dupes onTopRowChange so the per-frame stream isn't wasteful.
@@ -364,7 +374,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         guard let table = coordinator.tableView else { return }
 
         configureRowHeight(for: table)
-        // Only reload when the row set actually changed (filter/sort/refresh) — never on a
+        // Only reload when the row set actually changed (filter/sort/refresh) - never on a
         // bare selection change, which is the whole point of the rewrite.
         coordinator.reloadIfNeeded(items, force: false)
         coordinator.applySelection(selection)
@@ -401,7 +411,15 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// here yet.
     extension FastList: View {
         public var body: some View {
-            List(selection: $selection) {
+            // Note: no `selection:` binding on the `List`. A selection-bound `List` in a
+            // `NavigationSplitView` content column draws the system's emphasized selection on
+            // the focused cell - a saturated blue focus ring plus a vibrant text recolor that
+            // is near-illegible over our own soft highlight, and which `.focusEffectDisabled()`
+            // does not reach (it's the UIKit cell's selected+focused state, not a SwiftUI
+            // focus effect). Instead each row drives the `selection` binding itself on tap and
+            // we render the highlight entirely via `selectionBackground`, so the selected row
+            // keeps normal, readable text and no ring.
+            List {
                 ForEach(items) { item in
                     row(for: item)
                 }
@@ -412,14 +430,14 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             // rows out shifted under the leading edge, clipping the first characters of
             // each row. `.plain` lays out correctly; its default selection is a full-bleed
             // rectangle that runs edge to edge and slides behind the `NavigationSplitView`
-            // sidebar, so we suppress it via `.listRowBackground` and draw our own inset,
-            // rounded-rectangle highlight instead — no bleed, no clipping.
+            // sidebar, so we drive selection ourselves and draw our own inset,
+            // rounded-rectangle highlight instead - no bleed, no clipping, no system emphasis.
             .listStyle(.plain)
         }
 
         /// The per-row selection highlight: an inset, rounded-rectangle fill when the row
-        /// is selected and clear otherwise. Supplying it as the row background replaces the
-        /// plain list's default full-bleed selection, keeping the highlight off the column's
+        /// is selected and clear otherwise. Drawn as the row background in place of any
+        /// system selection (the `List` is unbound), keeping the highlight off the column's
         /// leading/trailing edges (so it can't bleed behind the split-view sidebar) and
         /// inside the row (so it can't clip the row's content).
         @ViewBuilder
@@ -441,9 +459,17 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             let menu = configuration.contextMenu?(item) ?? []
             let dragURL = configuration.dragURL?(item)
 
+            let isSelected = selection.contains(item.id)
+            // Drive selection on tap rather than via a `List(selection:)` binding, so the
+            // row shows our own highlight without the system's focused-cell ring / text
+            // recolor (see `body`). A `.rect` content shape makes the whole row tappable
+            // even where its content is hit-transparent; interactive controls inside the
+            // row (e.g. a favorite-star button) still receive their own taps.
             let base = rowContent(item)
-                .tag(item.id)
-                .listRowBackground(selectionBackground(isSelected: selection.contains(item.id)))
+                .contentShape(.rect)
+                .onTapGesture { selection = [item.id] }
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .listRowBackground(selectionBackground(isSelected: isSelected))
                 .swipeActions(edge: .leading) { swipeButtons(leading) }
                 .swipeActions(edge: .trailing) { swipeButtons(trailing) }
 
@@ -458,12 +484,30 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             }
 
             // A draggable row (drag a pad/question URL into Safari, Notes, or Split View)
-            // when a URL payload is configured.
+            // when a URL payload is configured. Supply an explicit preview so the lift is a
+            // compact link chip: the default `.draggable(_:)` preview snapshots the whole
+            // row, which inherits the caller's full-width / leading-padded row layout and
+            // drags as an oversized chip padded out with empty space.
             if let dragURL {
-                withMenu.draggable(dragURL)
+                withMenu.draggable(dragURL) {
+                    dragPreview(url: dragURL, title: configuration.dragTitle?(item))
+                }
             } else {
                 withMenu
             }
+        }
+
+        /// The lifted drag chip: the row's title (or a compact rendering of its URL) beside a
+        /// link glyph, sized to its content so it drags without the row's layout padding.
+        @ViewBuilder
+        private func dragPreview(url: URL, title: String?) -> some View {
+            let label = title?.isEmpty == false ? title! : (url.host ?? url.absoluteString)
+            Label(label, systemImage: "link")
+                .lineLimit(1)
+                .font(.body)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.regularMaterial, in: .rect(cornerRadius: 8))
         }
 
         @ViewBuilder
