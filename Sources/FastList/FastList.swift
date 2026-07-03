@@ -458,6 +458,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             let trailing = configuration.trailingSwipe?(item) ?? []
             let menu = configuration.contextMenu?(item) ?? []
             let dragURL = configuration.dragURL?(item)
+            let dragTitle = configuration.dragTitle?(item)
 
             let isSelected = selection.contains(item.id)
             // Drive selection on tap rather than via a `List(selection:)` binding, so the
@@ -474,10 +475,19 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                 .swipeActions(edge: .trailing) { swipeButtons(trailing) }
 
             // Only attach a context menu when one is configured, so unconfigured rows
-            // don't long-press into an empty menu.
+            // don't long-press into an empty menu. When a drag URL is configured, give the
+            // menu the same compact chip preview as the drag (below); otherwise the long-press
+            // platter defaults to the whole row, which inherits the caller's full-width /
+            // leading-padded layout and shows as an oversized platter padded with empty space.
             let withMenu = Group {
                 if menu.isEmpty {
                     base
+                } else if let dragURL {
+                    base.contextMenu {
+                        contextButtons(menu)
+                    } preview: {
+                        dragPreview(url: dragURL, title: dragTitle)
+                    }
                 } else {
                     base.contextMenu { contextButtons(menu) }
                 }
@@ -490,7 +500,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             // drags as an oversized chip padded out with empty space.
             if let dragURL {
                 withMenu.draggable(dragURL) {
-                    dragPreview(url: dragURL, title: configuration.dragTitle?(item))
+                    dragPreview(url: dragURL, title: dragTitle)
                 }
             } else {
                 withMenu
