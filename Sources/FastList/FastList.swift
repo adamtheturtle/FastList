@@ -499,6 +499,11 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
 
         /// The lifted drag chip: the row's title (or a compact rendering of its URL) beside a
         /// link glyph, sized to its content so it drags without the row's layout padding.
+        ///
+        /// The trailing `.fixedSize()` is load-bearing: the preview is first laid out inside
+        /// the row's layout context, which proposes the full column width, so without it the
+        /// chip flashes full-width for a frame before settling to its intrinsic size. Fixing
+        /// the size makes it lift compact from the start.
         @ViewBuilder
         private func dragPreview(url: URL, title: String?) -> some View {
             let label = title?.isEmpty == false ? title! : (url.host ?? url.absoluteString)
@@ -508,6 +513,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(.regularMaterial, in: .rect(cornerRadius: 8))
+                .fixedSize()
         }
 
         @ViewBuilder
