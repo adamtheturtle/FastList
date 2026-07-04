@@ -468,6 +468,15 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             // row (e.g. a favorite-star button) still receive their own taps.
             let base = rowContent(item)
                 .contentShape(.rect)
+                // Shape the drag *lift* platter (the brief snapshot of the source row shown
+                // before it morphs to the compact chip preview below). The row is full-width
+                // because of the caller's layout, so this can't shrink the lift, but it clips
+                // it to an inset rounded rect matching the selection highlight rather than a
+                // hard full-bleed rectangle, softening the transition into the chip.
+                .contentShape(
+                    .dragPreview,
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).inset(by: 8)
+                )
                 .onTapGesture { selection = [item.id] }
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
                 .listRowBackground(selectionBackground(isSelected: isSelected))
