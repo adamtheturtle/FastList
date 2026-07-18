@@ -67,7 +67,8 @@ struct Benchmark {
     }
 
     private func describe(_ duration: Duration) -> String {
-        let nanos = Double(duration.components.attoseconds) / 1_000_000_000 + Double(duration.components.seconds) * 1_000_000_000
+        let nanos = Double(duration.components.attoseconds) / 1_000_000_000
+            + Double(duration.components.seconds) * 1_000_000_000
         if nanos >= 1_000_000 { return String(format: "%.2f ms", nanos / 1_000_000) }
         if nanos >= 1_000 { return String(format: "%.1f us", nanos / 1_000) }
         return String(format: "%.0f ns", nanos)

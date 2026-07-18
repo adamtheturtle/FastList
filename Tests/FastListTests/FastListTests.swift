@@ -26,7 +26,9 @@ private final class CountingTableView: NSTableView {
 
     @Test func buildsIDIndexWithoutATableView() {
         let coordinator = makeCoordinator([Row(id: 10, name: "a"), Row(id: 20, name: "b"), Row(id: 30, name: "c")])
-        coordinator.reloadIfNeeded([Row(id: 10, name: "a"), Row(id: 20, name: "b"), Row(id: 30, name: "c")], force: true)
+        coordinator.reloadIfNeeded(
+            [Row(id: 10, name: "a"), Row(id: 20, name: "b"), Row(id: 30, name: "c")], force: true
+        )
 
         #expect(coordinator.index(of: 10) == 0)
         #expect(coordinator.index(of: 20) == 1)
