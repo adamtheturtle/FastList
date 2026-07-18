@@ -15,14 +15,20 @@ import SwiftUI
 /// menu is the table's own `menu` property, populated lazily by the coordinator's
 /// `menuNeedsUpdate(_:)` so AppKit draws the native right-clicked-row focus ring.
 final class KeyHandlingTableView: NSTableView {
-    var onReturn: (() -> Void)?
+    /// Handles Return / keypad Enter, returning whether it consumed the event. Returning
+    /// `false` (no `onReturnKey` configured, or nothing selected) means the event was not
+    /// handled here.
+    var onReturn: (() -> Bool)?
 
     override func keyDown(with event: NSEvent) {
         // 36 = Return, 76 = keypad Enter.
-        if event.keyCode == 36 || event.keyCode == 76 {
-            onReturn?()
-        } else {
+        let isReturn = event.keyCode == 36 || event.keyCode == 76
+        // Fall through to the responder chain whenever the handler declines the event, so a
+        // list without `onReturnKey` doesn't swallow Return and leave, say, a sheet's default
+        // button unreachable while the table has focus.
+        guard isReturn, onReturn?() == true else {
             super.keyDown(with: event)
+            return
         }
     }
 

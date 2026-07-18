@@ -88,6 +88,11 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     }
 
     /// Creates a list with a single-selection binding.
+    ///
+    /// The table is put into single-selection mode, so the user cannot shift- or
+    /// command-click a second row: a multi-row selection that this binding could not
+    /// represent is never formed in the first place. (Collapsing one after the fact with
+    /// `Set.first` would pick an arbitrary, hash-order-dependent row.)
     public init(
         _ items: [Item],
         selection: Binding<Item.ID?>,
@@ -97,18 +102,26 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             items,
             selection: Binding(
                 get: { selection.wrappedValue.map { [$0] } ?? [] },
+                // The table is single-selection, so this set holds at most one id.
                 set: { selection.wrappedValue = $0.first }
             ),
             row: row
         )
+        configuration.selectionMode = .single
     }
 
     /// Creates a non-selectable list.
+    ///
+    /// The table itself is made non-selectable, rather than merely dropping the selection
+    /// on the floor: a click leaves no highlight to begin with. A discarding binding would
+    /// let AppKit highlight the clicked row and, because a write that changes nothing
+    /// invalidates nothing, never get a chance to undo it.
     public init(
         _ items: [Item],
         @ViewBuilder row: @escaping (Item) -> some View
     ) {
         self.init(items, selection: .constant([]), row: row)
+        configuration.selectionMode = .none
     }
 
     // MARK: Modifiers
@@ -266,6 +279,10 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// .onReachEnd(threshold: 10) { loadNextPage() }
     /// ```
     ///
+    /// Fires at most once per row count, so sitting at the bottom can't spin a paging loop
+    /// while a page is in flight, and any page size re-arms it - including a page no larger
+    /// than `threshold`, which leaves the viewport's bottom still inside the threshold zone.
+    ///
     /// - Parameters:
     ///   - threshold: How many rows from the end the last visible row must reach before
     ///     firing. Defaults to `0` (the last row must be visible).
@@ -283,6 +300,11 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// ```swift
     /// .scrollToRow(id: restoredAnchor) { restoredAnchor = nil }
     /// ```
+    ///
+    /// "Once" is enforced, so `then` is genuinely optional: a target left set across later
+    /// updates - a persistently stored anchor, say - is not re-honored, and cannot pin the
+    /// viewport. Setting the target back to `nil` and then to the same id again scrolls again.
+    /// A target whose row isn't loaded yet stays pending until it appears.
     public func scrollToRow(id: Item.ID?, then: @escaping () -> Void = {}) -> Self {
         copy {
             $0.scrollToID = id
@@ -308,7 +330,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         table.headerView = nil
         table.style = .inset
         configureRowHeight(for: table)
-        table.allowsMultipleSelection = true
+        configureSelection(for: table)
         table.allowsEmptySelection = true
         table.selectionHighlightStyle = .regular
         table.backgroundColor = .clear
@@ -319,7 +341,9 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         table.delegate = context.coordinator
         table.target = context.coordinator
         table.doubleAction = #selector(Coordinator.handleDoubleClick)
-        table.onReturn = { [weak coordinator = context.coordinator] in coordinator?.handleReturn() }
+        // Returns whether the press was consumed; `false` lets the table fall through to
+        // `super.keyDown(with:)` so the responder chain still sees Return.
+        table.onReturn = { [weak coordinator = context.coordinator] in coordinator?.handleReturn() ?? false }
 
         // Drive the right-click menu through the table's own `menu` property (populated
         // lazily in `menuNeedsUpdate`) rather than overriding `menu(for:)`, so AppKit's
@@ -374,13 +398,17 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         guard let table = coordinator.tableView else { return }
 
         configureRowHeight(for: table)
+        configureSelection(for: table)
         // Only reload when the row set actually changed (filter/sort/refresh) - never on a
         // bare selection change, which is the whole point of the rewrite.
         coordinator.reloadIfNeeded(items, force: false)
         coordinator.applySelection(selection)
 
-        if let scrollToID = configuration.scrollToID, let row = coordinator.index(of: scrollToID) {
-            table.scrollRowToVisible(row)
+        // Honors the documented "scrolls a row into view *once*" contract: the coordinator
+        // remembers the last id it scrolled to and declines repeats, so a caller who stores
+        // the anchor persistently (and so never clears it via `then`) doesn't have every
+        // later update - a selection change, a reloadID bump - yank the viewport back.
+        if coordinator.scrollToTargetIfNeeded(table) {
             DispatchQueue.main.async { configuration.onScrolledToID?() }
         }
     }
@@ -392,6 +420,19 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         } else {
             table.usesAutomaticRowHeights = true
         }
+    }
+
+    /// Matches the table's AppKit selection behavior to the initializer the caller used.
+    ///
+    /// `.single` blocks shift/command-click, so a multi-row selection - which a
+    /// `Binding<Item.ID?>` cannot represent - is impossible to form in the first place.
+    /// `.none` additionally refuses selection outright via the coordinator's
+    /// `selectionShouldChange(in:)` / `tableView(_:shouldSelectRow:)`, so a click leaves no
+    /// highlight at all. (`NSTableView` has no `isSelectable`; the delegate is the supported
+    /// way to make a table non-selectable, and unlike `allowsEmptySelection` juggling it also
+    /// covers Select All and keyboard navigation.)
+    func configureSelection(for table: NSTableView) {
+        table.allowsMultipleSelection = configuration.selectionMode == .multiple
     }
     #endif
 }
@@ -477,7 +518,13 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                     .dragPreview,
                     RoundedRectangle(cornerRadius: 10, style: .continuous).inset(by: 8)
                 )
-                .onTapGesture { selection = [item.id] }
+                // A non-selectable list ignores taps entirely, matching the macOS backend's
+                // `isSelectable = false`, so no highlight can appear.
+                .onTapGesture {
+                    guard configuration.selectionMode != .none else { return }
+
+                    selection = [item.id]
+                }
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
                 .listRowBackground(selectionBackground(isSelected: isSelected))
                 .swipeActions(edge: .leading) { swipeButtons(leading) }

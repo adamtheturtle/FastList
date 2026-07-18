@@ -21,10 +21,17 @@ extension FastList {
         /// bounds change (so it covers mouse-wheel/scrollbar/keyboard scrolls, not just trackpad
         /// gestures), and this de-dupes those per-frame events down to one call per actual change.
         private var lastTopRowID: Item.ID?
-        /// Whether the last bounds event already had the viewport's bottom within the load-more
-        /// threshold. `onReachEnd` fires only on the transition *into* that zone, so the per-frame
-        /// bounds stream (and sitting at the end) can't re-fire it in a runaway paging loop.
-        private var wasNearEnd = false
+        /// The row count the list had when `onReachEnd` last fired, or `nil` if it hasn't fired
+        /// for the current data. Level-triggered on the count rather than edge-triggered on
+        /// "was near the end": the per-frame bounds stream can't re-fire a runaway paging loop
+        /// (the count doesn't change until a page actually lands), but any change in the count -
+        /// a page appended, or the data replaced by a filter - re-arms it. See
+        /// ``consumeReachEnd(lastVisibleRow:itemCount:threshold:)``.
+        private var reachEndFiredAtCount: Int?
+        /// The id `scrollToRow(id:)` last scrolled to, so a target that stays set across updates
+        /// scrolls once rather than on every update. Cleared when the target goes back to `nil`,
+        /// so re-setting the same id later scrolls again.
+        private var lastScrolledToID: Item.ID?
 
         init(_ parent: FastList) {
             self.parent = parent
@@ -96,6 +103,20 @@ extension FastList {
 
         // MARK: Selection
 
+        /// Refuses every selection change on a non-selectable list (the `init(_:row:)`
+        /// initializer, which takes no binding). Blocking the change here means AppKit never
+        /// draws a highlight, rather than drawing one and relying on a write-back that a
+        /// binding with nowhere to write can never undo.
+        public func selectionShouldChange(in _: NSTableView) -> Bool {
+            parent.configuration.selectionMode != .none
+        }
+
+        /// Backstop for the programmatic selection paths that bypass
+        /// ``selectionShouldChange(in:)``, so a non-selectable list stays non-selectable.
+        public func tableView(_: NSTableView, shouldSelectRow _: Int) -> Bool {
+            parent.configuration.selectionMode != .none
+        }
+
         /// Push the binding's selection into the table without echoing it back.
         func applySelection(_ ids: Set<Item.ID>) {
             guard let tableView else { return }
@@ -126,11 +147,42 @@ extension FastList {
             parent.configuration.onDoubleClick?(items[tableView.clickedRow])
         }
 
-        func handleReturn() {
-            guard let tableView, let row = tableView.selectedRowIndexes.first,
-                  items.indices.contains(row) else { return }
+        /// Opens the selected row, if there is one and a handler is configured.
+        ///
+        /// - Returns: Whether the key press was consumed. `false` means the caller should pass
+        ///   the event on to `super.keyDown(with:)` so the responder chain still sees it - so a
+        ///   `FastList` with no `onReturnKey` doesn't swallow Return and block, say, a sheet's
+        ///   default button.
+        @discardableResult
+        func handleReturn() -> Bool {
+            guard let onReturnKey = parent.configuration.onReturnKey,
+                  let tableView, let row = tableView.selectedRowIndexes.first,
+                  items.indices.contains(row) else { return false }
 
-            parent.configuration.onReturnKey?(items[row])
+            onReturnKey(items[row])
+            return true
+        }
+
+        // MARK: Scrolling to a row
+
+        /// Scrolls to ``FastListConfiguration/scrollToID`` if that target hasn't been honored
+        /// yet, implementing ``FastList/scrollToRow(id:then:)``'s documented "once" semantics.
+        ///
+        /// - Returns: Whether a scroll was performed, i.e. whether `then` should now be called.
+        @discardableResult
+        func scrollToTargetIfNeeded(_ tableView: NSTableView) -> Bool {
+            guard let id = parent.configuration.scrollToID else {
+                // The target was cleared, so a later re-set of the same id counts as new.
+                lastScrolledToID = nil
+                return false
+            }
+            // Check the row exists *before* recording the target: an id that isn't loaded yet
+            // must stay pending so it still scrolls once its page arrives.
+            guard id != lastScrolledToID, let row = index(of: id) else { return false }
+
+            lastScrolledToID = id
+            tableView.scrollRowToVisible(row)
+            return true
         }
 
         /// The scroll position changed - report the row now at the top of the viewport (when it
@@ -158,17 +210,41 @@ extension FastList {
             }
 
             if let onReachEnd = parent.configuration.onReachEnd {
-                let lastVisible = NSMaxRange(visible) - 1
-                let nearEnd = items.indices.contains(lastVisible)
-                    && lastVisible >= items.count - 1 - parent.configuration.reachEndThreshold
-                // Edge-triggered: fire only when the bottom first enters the threshold zone, not
-                // on every frame while it stays there. Appending a page moves the bottom away,
-                // re-arming it for the next scroll-to-end - so paging is one page per reach.
-                if nearEnd, !wasNearEnd { onReachEnd() }
-                wasNearEnd = nearEnd
+                if consumeReachEnd(
+                    lastVisibleRow: NSMaxRange(visible) - 1,
+                    itemCount: items.count,
+                    threshold: parent.configuration.reachEndThreshold
+                ) {
+                    onReachEnd()
+                }
             } else {
-                wasNearEnd = false
+                reachEndFiredAtCount = nil
             }
+        }
+
+        /// Whether the viewport's bottom has reached the load-more threshold *and* the list has
+        /// changed since the trigger last fired.
+        ///
+        /// De-duping on the row count rather than on an "was already near the end" edge is what
+        /// makes paging work for **any** page size. With an edge flag, a page no larger than the
+        /// threshold leaves the bottom still inside the threshold zone after it lands, so the
+        /// flag never clears and the trigger never re-fires - paging dies after one page for a
+        /// page size <= the threshold (and immediately for a page size of 1). Keyed on the count,
+        /// every landed page re-arms the trigger, while the per-frame bounds stream can't re-fire
+        /// it because the count doesn't move until a page actually arrives.
+        ///
+        /// Any change in the count re-arms, not just growth, so replacing the data (a filter or a
+        /// refresh that shrinks the list) can page again too.
+        ///
+        /// - Returns: Whether `onReachEnd` should fire now. Firing is recorded, so a second call
+        ///   at the same count returns `false`.
+        func consumeReachEnd(lastVisibleRow: Int, itemCount: Int, threshold: Int) -> Bool {
+            guard (0 ..< itemCount).contains(lastVisibleRow),
+                  lastVisibleRow >= itemCount - 1 - threshold,
+                  reachEndFiredAtCount != itemCount else { return false }
+
+            reachEndFiredAtCount = itemCount
+            return true
         }
 
         // MARK: Swipe actions
