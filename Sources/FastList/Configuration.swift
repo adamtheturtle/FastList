@@ -8,21 +8,6 @@
 #endif
 import SwiftUI
 
-/// How many rows a ``FastList`` lets the user select.
-///
-/// Chosen by the initializer the caller uses rather than by a modifier, so the table's
-/// AppKit selection behavior always matches the shape of the binding that drives it.
-public enum FastListSelectionMode: Sendable {
-    /// No selection at all: the table is not selectable, so a click can't leave a
-    /// highlight behind. Used by the `init(_:row:)` initializer, which has no binding.
-    case none
-    /// Exactly one row at a time. Used by the `Binding<Item.ID?>` initializer, whose
-    /// binding cannot represent more than one selected row.
-    case single
-    /// Any number of rows. Used by the `Binding<Set<Item.ID>>` initializer.
-    case multiple
-}
-
 /// The visual / behavioral role of a swipe action.
 public enum FastListActionRole: Sendable {
     /// A standard action (grey background unless a ``SwipeAction/tint`` is given).
@@ -82,24 +67,13 @@ public enum MenuItem {
 /// The optional behaviors layered onto a ``FastList`` by its modifiers. Internal; callers
 /// configure it through the fluent modifier methods on ``FastList``.
 struct FastListConfiguration<Item: Identifiable> {
-    /// How many rows the user may select. Set by the initializer, not by a modifier: it is a
-    /// property of the binding's shape, so it can't be changed independently of it.
-    var selectionMode: FastListSelectionMode = .multiple
     var onDoubleClick: ((Item) -> Void)?
     var onReturnKey: ((Item) -> Void)?
     var leadingSwipe: ((Item) -> [SwipeAction])?
     var trailingSwipe: ((Item) -> [SwipeAction])?
     var contextMenu: ((Item) -> [MenuItem])?
-    /// A cross-platform drag payload as a `URL` (e.g. a pad's web URL). On iOS it drives a
-    /// native `.draggable` so a row can be dragged into Safari, Notes, or a Split View; on
-    /// macOS the richer `pasteboardItem` path below is used instead.
-    var dragURL: ((Item) -> URL?)?
-    /// A human-readable title for the row's iOS drag preview (e.g. a pad's name). When set,
-    /// the lifted drag chip shows this title beside a link glyph instead of snapshotting the
-    /// full-width row; `nil` falls back to a compact rendering of the `dragURL`.
-    var dragTitle: ((Item) -> String?)?
     // The drag payload/session callbacks are typed in AppKit (NSPasteboardItem /
-    // NSDraggingSession), so they exist only on macOS. iPad row dragging uses `dragURL`.
+    // NSDraggingSession), so they exist only on macOS.
     #if os(macOS)
         var pasteboardItem: ((Item) -> NSPasteboardItem?)?
         var onDragSessionBegan: ((NSDraggingSession) -> Void)?
@@ -117,6 +91,4 @@ struct FastListConfiguration<Item: Identifiable> {
     /// Reloads rows when caller-controlled row-content inputs change even if row ids
     /// did not. Selection-only updates still reuse the existing table rows.
     var reloadID: AnyHashable?
-    /// Fixed row height for the macOS backend. Nil keeps automatic row heights.
-    var rowHeight: CGFloat?
 }
