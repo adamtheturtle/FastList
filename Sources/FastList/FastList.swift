@@ -507,6 +507,17 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             // recolor (see `body`). A `.rect` content shape makes the whole row tappable
             // even where its content is hit-transparent; interactive controls inside the
             // row (e.g. a favorite-star button) still receive their own taps.
+            #if os(tvOS)
+            let base = rowContent(item)
+                .contentShape(.rect)
+                .onTapGesture {
+                    guard configuration.selectionMode != .none else { return }
+
+                    selection = [item.id]
+                }
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .listRowBackground(selectionBackground(isSelected: isSelected))
+            #else
             let base = rowContent(item)
                 .contentShape(.rect)
                 // Shape the drag *lift* platter (the brief snapshot of the source row shown
@@ -529,6 +540,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                 .listRowBackground(selectionBackground(isSelected: isSelected))
                 .swipeActions(edge: .leading) { swipeButtons(leading) }
                 .swipeActions(edge: .trailing) { swipeButtons(trailing) }
+            #endif
 
             // Only attach a context menu when one is configured, so unconfigured rows
             // don't long-press into an empty menu. When a drag URL is configured, give the
@@ -554,6 +566,9 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             // compact link chip: the default `.draggable(_:)` preview snapshots the whole
             // row, which inherits the caller's full-width / leading-padded row layout and
             // drags as an oversized chip padded out with empty space.
+            #if os(tvOS)
+                withMenu
+            #else
             if let dragURL {
                 withMenu.draggable(dragURL) {
                     dragPreview(url: dragURL, title: dragTitle)
@@ -561,6 +576,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             } else {
                 withMenu
             }
+            #endif
         }
 
         /// The lifted drag chip: the row's title (or a compact rendering of its URL) beside a
