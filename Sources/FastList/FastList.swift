@@ -31,14 +31,12 @@ import SwiftUI
 ///
 /// ## Selection
 ///
-/// Pass a binding to drive selection, or omit it for a non-selectable list. `rows` is any
+/// Pass a set binding to drive multiple selection. `rows` is any
 /// `[Item]` where `Item: Identifiable`; filter and sort it yourself before handing it over,
 /// because `FastList` renders exactly what you pass.
 ///
 /// ```swift
 /// FastList(rows, selection: $selectedIDs) { RowView($0) }  // Binding<Set<ID>>
-/// FastList(rows, selection: $selectedID)  { RowView($0) }  // Binding<ID?>
-/// FastList(rows) { RowView($0) }                           // no selection
 /// ```
 ///
 /// ## Hit-testing
@@ -51,9 +49,8 @@ import SwiftUI
 ///
 /// ## How it works
 ///
-/// - One `NSTableColumn`, header hidden, with automatic row heights by default so it behaves
-///   like a single-column `List` with variable-height rows. Fixed-format rows can opt into
-///   ``rowHeight(_:)`` to skip intrinsic-height measurement during scroll.
+/// - One `NSTableColumn`, header hidden, with automatic row heights so it behaves like a
+///   single-column `List` with variable-height rows.
 /// - Rows are recycled `NSTableCellView`s, each hosting your SwiftUI view in an
 ///   `NSHostingView` sized to its intrinsic content height.
 /// - The coordinator keeps an id-to-row index so selection and ``scrollToRow(id:then:)`` are
@@ -85,43 +82,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         self.items = items
         _selection = selection
         rowContent = { AnyView(row($0)) }
-    }
-
-    /// Creates a list with a single-selection binding.
-    ///
-    /// The table is put into single-selection mode, so the user cannot shift- or
-    /// command-click a second row: a multi-row selection that this binding could not
-    /// represent is never formed in the first place. (Collapsing one after the fact with
-    /// `Set.first` would pick an arbitrary, hash-order-dependent row.)
-    public init(
-        _ items: [Item],
-        selection: Binding<Item.ID?>,
-        @ViewBuilder row: @escaping (Item) -> some View
-    ) {
-        self.init(
-            items,
-            selection: Binding(
-                get: { selection.wrappedValue.map { [$0] } ?? [] },
-                // The table is single-selection, so this set holds at most one id.
-                set: { selection.wrappedValue = $0.first }
-            ),
-            row: row
-        )
-        configuration.selectionMode = .single
-    }
-
-    /// Creates a non-selectable list.
-    ///
-    /// The table itself is made non-selectable, rather than merely dropping the selection
-    /// on the floor: a click leaves no highlight to begin with. A discarding binding would
-    /// let AppKit highlight the clicked row and, because a write that changes nothing
-    /// invalidates nothing, never get a chance to undo it.
-    public init(
-        _ items: [Item],
-        @ViewBuilder row: @escaping (Item) -> some View
-    ) {
-        self.init(items, selection: .constant([]), row: row)
-        configuration.selectionMode = .none
     }
 
     // MARK: Modifiers
@@ -176,24 +136,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// ```
     public func rowContextMenu(_ items: @escaping (Item) -> [MenuItem]) -> Self {
         copy { $0.contextMenu = items }
-    }
-
-    /// Makes rows draggable on iOS/iPadOS by returning a `URL` payload (e.g. a pad's web
-    /// URL), or `nil` for a non-draggable row. Drives a native SwiftUI `.draggable`, so a
-    /// row can be dragged into Safari, Notes, or a Split View. On macOS the richer
-    /// ``onRowDrag(_:)`` pasteboard path is used instead, so this is a no-op there.
-    public func onRowDragURL(_ url: @escaping (Item) -> URL?) -> Self {
-        copy { $0.dragURL = url }
-    }
-
-    /// Supplies a human-readable title for a row's iOS drag preview (e.g. a pad's name).
-    ///
-    /// Without it, `.onRowDragURL`'s lift snapshots the whole row, which inherits any
-    /// full-width / leading-padded row layout and drags as an oversized chip padded out with
-    /// empty space. With a title, the lift is a compact link chip instead. macOS uses the
-    /// AppKit drag path, so this is a no-op there.
-    public func onRowDragTitle(_ title: @escaping (Item) -> String?) -> Self {
-        copy { $0.dragTitle = title }
     }
 
     /// Makes rows draggable. Return the pasteboard payload for a row, or `nil` to make that
@@ -255,16 +197,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// by `items`, such as favorite ids or read/unread state.
     public func reloadID(_ id: some Hashable) -> Self {
         copy { $0.reloadID = AnyHashable(id) }
-    }
-
-    /// Uses a fixed row height on the macOS `NSTableView` backend.
-    ///
-    /// By default `FastList` uses AppKit's automatic row heights so arbitrary SwiftUI row
-    /// content can size itself. Fixed-format rows can opt into a concrete height to avoid
-    /// intrinsic-height measurement while rows recycle during fast scrolling. This is a no-op
-    /// on the iOS/iPadOS SwiftUI `List` backend.
-    public func rowHeight(_ height: CGFloat?) -> Self {
-        copy { $0.rowHeight = height }
     }
 
     /// Fires when the last visible row comes within `threshold` rows of the end of the data
@@ -329,8 +261,8 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         let table = KeyHandlingTableView()
         table.headerView = nil
         table.style = .inset
-        configureRowHeight(for: table)
-        configureSelection(for: table)
+        table.usesAutomaticRowHeights = true
+        table.allowsMultipleSelection = true
         table.allowsEmptySelection = true
         table.selectionHighlightStyle = .regular
         table.backgroundColor = .clear
@@ -397,8 +329,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         coordinator.parent = self
         guard let table = coordinator.tableView else { return }
 
-        configureRowHeight(for: table)
-        configureSelection(for: table)
         // Only reload when the row set actually changed (filter/sort/refresh) - never on a
         // bare selection change, which is the whole point of the rewrite.
         coordinator.reloadIfNeeded(items, force: false)
@@ -413,27 +343,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         }
     }
 
-    private func configureRowHeight(for table: NSTableView) {
-        if let rowHeight = configuration.rowHeight {
-            table.usesAutomaticRowHeights = false
-            if table.rowHeight != rowHeight { table.rowHeight = rowHeight }
-        } else {
-            table.usesAutomaticRowHeights = true
-        }
-    }
-
-    /// Matches the table's AppKit selection behavior to the initializer the caller used.
-    ///
-    /// `.single` blocks shift/command-click, so a multi-row selection - which a
-    /// `Binding<Item.ID?>` cannot represent - is impossible to form in the first place.
-    /// `.none` additionally refuses selection outright via the coordinator's
-    /// `selectionShouldChange(in:)` / `tableView(_:shouldSelectRow:)`, so a click leaves no
-    /// highlight at all. (`NSTableView` has no `isSelectable`; the delegate is the supported
-    /// way to make a table non-selectable, and unlike `allowsEmptySelection` juggling it also
-    /// covers Select All and keyboard navigation.)
-    func configureSelection(for table: NSTableView) {
-        table.allowsMultipleSelection = configuration.selectionMode == .multiple
-    }
     #endif
 }
 
@@ -498,9 +407,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             let leading = configuration.leadingSwipe?(item) ?? []
             let trailing = configuration.trailingSwipe?(item) ?? []
             let menu = configuration.contextMenu?(item) ?? []
-            let dragURL = configuration.dragURL?(item)
-            let dragTitle = configuration.dragTitle?(item)
-
             let isSelected = selection.contains(item.id)
             // Drive selection on tap rather than via a `List(selection:)` binding, so the
             // row shows our own highlight without the system's focused-cell ring / text
@@ -511,8 +417,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             let base = rowContent(item)
                 .contentShape(.rect)
                 .onTapGesture {
-                    guard configuration.selectionMode != .none else { return }
-
                     selection = [item.id]
                 }
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -520,20 +424,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             #else
             let base = rowContent(item)
                 .contentShape(.rect)
-                // Shape the drag *lift* platter (the brief snapshot of the source row shown
-                // before it morphs to the compact chip preview below). The row is full-width
-                // because of the caller's layout, so this can't shrink the lift, but it clips
-                // it to an inset rounded rect matching the selection highlight rather than a
-                // hard full-bleed rectangle, softening the transition into the chip.
-                .contentShape(
-                    .dragPreview,
-                    RoundedRectangle(cornerRadius: 10, style: .continuous).inset(by: 8)
-                )
-                // A non-selectable list ignores taps entirely, matching the macOS backend's
-                // `isSelectable = false`, so no highlight can appear.
                 .onTapGesture {
-                    guard configuration.selectionMode != .none else { return }
-
                     selection = [item.id]
                 }
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -543,59 +434,14 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             #endif
 
             // Only attach a context menu when one is configured, so unconfigured rows
-            // don't long-press into an empty menu. When a drag URL is configured, give the
-            // menu the same compact chip preview as the drag (below); otherwise the long-press
-            // platter defaults to the whole row, which inherits the caller's full-width /
-            // leading-padded layout and shows as an oversized platter padded with empty space.
-            let withMenu = Group {
+            // don't long-press into an empty menu.
+            Group {
                 if menu.isEmpty {
                     base
-                } else if let dragURL {
-                    base.contextMenu {
-                        contextButtons(menu)
-                    } preview: {
-                        dragPreview(url: dragURL, title: dragTitle)
-                    }
                 } else {
                     base.contextMenu { contextButtons(menu) }
                 }
             }
-
-            // A draggable row (drag a pad/question URL into Safari, Notes, or Split View)
-            // when a URL payload is configured. Supply an explicit preview so the lift is a
-            // compact link chip: the default `.draggable(_:)` preview snapshots the whole
-            // row, which inherits the caller's full-width / leading-padded row layout and
-            // drags as an oversized chip padded out with empty space.
-            #if os(tvOS)
-                withMenu
-            #else
-            if let dragURL {
-                withMenu.draggable(dragURL) {
-                    dragPreview(url: dragURL, title: dragTitle)
-                }
-            } else {
-                withMenu
-            }
-            #endif
-        }
-
-        /// The lifted drag chip: the row's title (or a compact rendering of its URL) beside a
-        /// link glyph, sized to its content so it drags without the row's layout padding.
-        ///
-        /// The trailing `.fixedSize()` is load-bearing: the preview is first laid out inside
-        /// the row's layout context, which proposes the full column width, so without it the
-        /// chip flashes full-width for a frame before settling to its intrinsic size. Fixing
-        /// the size makes it lift compact from the start.
-        @ViewBuilder
-        private func dragPreview(url: URL, title: String?) -> some View {
-            let label = title?.isEmpty == false ? title! : (url.host ?? url.absoluteString)
-            Label(label, systemImage: "link")
-                .lineLimit(1)
-                .font(.body)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(.regularMaterial, in: .rect(cornerRadius: 8))
-                .fixedSize()
         }
 
         @ViewBuilder

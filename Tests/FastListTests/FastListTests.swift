@@ -375,18 +375,15 @@ private extension NSEvent {
             .swipeActions(edge: .trailing) { _ in [] }
             .rowContextMenu { _ in [] }
             .reloadID("content")
-            .rowHeight(44)
 
         #expect(configured.configuration.onDoubleClick != nil)
         #expect(configured.configuration.onReturnKey != nil)
         #expect(configured.configuration.trailingSwipe != nil)
         #expect(configured.configuration.contextMenu != nil)
         #expect(configured.configuration.reloadID == AnyHashable("content"))
-        #expect(configured.configuration.rowHeight == 44)
         // The original value is untouched (value semantics).
         #expect(base.configuration.onDoubleClick == nil)
         #expect(base.configuration.reloadID == nil)
-        #expect(base.configuration.rowHeight == nil)
     }
 
     @Test func onReachEndStoresThresholdAndAction() {
@@ -408,79 +405,4 @@ private extension NSEvent {
         #expect(leading.configuration.trailingSwipe == nil)
     }
 
-    /// What a configured table's selection behavior actually comes out as: the AppKit flag plus
-    /// the two delegate answers that decide whether a selection can happen at all.
-    private struct TableSelectionState {
-        var allowsMultipleSelection: Bool
-        var allowsSelection: Bool
-        var allowsRowSelection: Bool
-    }
-
-    /// Regression test for the single-selection binding collapsing a multi-row selection to an
-    /// arbitrary (hash-ordered) row: the table must be single-selection so the multi-row
-    /// selection can never form.
-    @Test func singleSelectionBindingUsesSingleSelectionMode() {
-        var selected: Int?
-        let binding = Binding<Int?>(get: { selected }, set: { selected = $0 })
-        let list = FastList([Row(id: 7, name: "a")], selection: binding) { Text($0.name) }
-
-        #expect(list.configuration.selectionMode == .single)
-        #expect(!tableSelectionState(for: list).allowsMultipleSelection)
-    }
-
-    /// Regression test for the "non-selectable" list being selectable: the table must refuse
-    /// selection outright rather than discarding the write into a `.constant` binding, which
-    /// leaves AppKit's highlight on screen forever.
-    @Test func nonSelectableListRefusesSelection() {
-        let list = FastList([Row(id: 1, name: "a"), Row(id: 2, name: "b")]) { Text($0.name) }
-        #expect(list.configuration.selectionMode == .none)
-
-        let state = tableSelectionState(for: list)
-        #expect(!state.allowsMultipleSelection)
-        #expect(!state.allowsSelection)
-        #expect(!state.allowsRowSelection)
-    }
-
-    @Test func multipleSelectionListStaysMultiSelect() {
-        let list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
-        #expect(list.configuration.selectionMode == .multiple)
-
-        let state = tableSelectionState(for: list)
-        #expect(state.allowsMultipleSelection)
-        #expect(state.allowsSelection)
-        #expect(state.allowsRowSelection)
-    }
-
-    /// Builds the real `NSTableView` the representable would build and reports what its
-    /// selection behavior actually ends up as, delegate included.
-    private func tableSelectionState(for list: FastList<Row>) -> TableSelectionState {
-        let coordinator = list.makeCoordinator()
-        let table = NSTableView()
-        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
-        table.dataSource = coordinator
-        table.delegate = coordinator
-        coordinator.tableView = table
-        coordinator.reloadIfNeeded(list.items, force: true)
-        // The same call `makeNSView` / `updateNSView` make; a real `Context` can't be built in
-        // a unit test, so drive the table configuration directly.
-        list.configureSelection(for: table)
-
-        return TableSelectionState(
-            allowsMultipleSelection: table.allowsMultipleSelection,
-            allowsSelection: coordinator.selectionShouldChange(in: table),
-            allowsRowSelection: coordinator.tableView(table, shouldSelectRow: 0)
-        )
-    }
-
-    @Test func singleSelectionBindingBridgesToASet() {
-        var selected: Int?
-        let binding = Binding<Int?>(get: { selected }, set: { selected = $0 })
-        let list = FastList([Row(id: 7, name: "a")], selection: binding) { Text($0.name) }
-
-        list.$selection.wrappedValue = [7]
-        #expect(selected == 7)
-
-        list.$selection.wrappedValue = []
-        #expect(selected == nil)
-    }
 }
