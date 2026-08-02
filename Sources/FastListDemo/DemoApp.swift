@@ -35,6 +35,9 @@ private struct ContentView: View {
     @State private var selection: Set<Int> = []
     @State private var query = ""
     @State private var lastOpened = "-"
+    /// `Contact.id` stays stable when its flag changes, so this token tells the recycled
+    /// table cells that caller-owned row content changed.
+    @State private var rowContentRevision = 0
 
     private var visible: [Contact] {
         guard !query.isEmpty else { return contacts }
@@ -64,6 +67,7 @@ private struct ContentView: View {
                     .button(title: "Delete") { delete(contact) }
                 ]
             }
+            .rowContentID(rowContentRevision)
         }
     }
 
@@ -110,6 +114,7 @@ private struct ContentView: View {
     private func toggleFlag(_ contact: Contact) {
         guard let index = contacts.firstIndex(where: { $0.id == contact.id }) else { return }
         contacts[index].isFlagged.toggle()
+        rowContentRevision += 1
     }
 
     private func delete(_ contact: Contact) {

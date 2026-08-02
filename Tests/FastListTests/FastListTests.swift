@@ -46,12 +46,12 @@ private final class CountingTableView: NSTableView {
         #expect(coordinator.index(of: 1) == 1)
     }
 
-    @Test func reloadIDForcesReloadWithoutChangingRows() {
+    @Test func rowContentIDForcesReloadWithoutChangingRows() {
         let table = CountingTableView()
         table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
 
         var list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
-            .reloadID("one")
+            .rowContentID("one")
         let coordinator = list.makeCoordinator()
         coordinator.tableView = table
         coordinator.reloadIfNeeded([Row(id: 1, name: "a")], force: true)
@@ -60,7 +60,7 @@ private final class CountingTableView: NSTableView {
         coordinator.reloadIfNeeded([Row(id: 1, name: "a")], force: false)
         #expect(table.reloadCount == 1)
 
-        list = list.reloadID("two")
+        list = list.rowContentID("two")
         coordinator.parent = list
         coordinator.reloadIfNeeded([Row(id: 1, name: "a")], force: false)
         #expect(table.reloadCount == 2)
@@ -193,7 +193,7 @@ private final class CountingTableView: NSTableView {
     }
 
     /// The bug: a caller who stores the anchor persistently never clears it, so every later
-    /// `updateNSView` - one per selection change, one per `reloadID` bump - yanked the viewport
+    /// `updateNSView` - one per selection change, one per `rowContentID` bump - yanked the viewport
     /// back to the anchor. ``FastList/scrollToRow(id:then:)`` documents a scroll that happens
     /// *once*, so only the first update may scroll.
     @Test func scrollsOnceForAPersistentTarget() {
@@ -374,16 +374,26 @@ private extension NSEvent {
             .onReturnKey { _ in }
             .swipeActions(edge: .trailing) { _ in [] }
             .rowContextMenu { _ in [] }
-            .reloadID("content")
+            .rowContentID("content")
 
         #expect(configured.configuration.onDoubleClick != nil)
         #expect(configured.configuration.onReturnKey != nil)
         #expect(configured.configuration.trailingSwipe != nil)
         #expect(configured.configuration.contextMenu != nil)
-        #expect(configured.configuration.reloadID == AnyHashable("content"))
+        #expect(configured.configuration.rowContentID == AnyHashable("content"))
         // The original value is untouched (value semantics).
         #expect(base.configuration.onDoubleClick == nil)
-        #expect(base.configuration.reloadID == nil)
+        #expect(base.configuration.rowContentID == nil)
+    }
+
+    /// Keeps the compatibility spelling covered until both apps migrate to
+    /// `rowContentID(_:)`.
+    @available(*, deprecated)
+    @Test func reloadIDForwardsToRowContentID() {
+        let list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+            .reloadID("legacy")
+
+        #expect(list.configuration.rowContentID == AnyHashable("legacy"))
     }
 
     @Test func onReachEndStoresThresholdAndAction() {

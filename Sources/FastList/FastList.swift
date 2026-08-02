@@ -190,19 +190,34 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.onTopRowChange = action }
     }
 
-    /// Reloads visible rows when `id` changes, even if the item id sequence is unchanged.
+    /// Rebuilds visible row content when `id` changes, even if the item id sequence is
+    /// unchanged.
     ///
     /// `FastList` normally avoids `reloadData` unless row ids change, so selection-only
-    /// updates stay cheap. Use this when row content depends on external state not captured
-    /// by `items`, such as favorite ids or read/unread state.
+    /// updates stay cheap. Use this when a row reads caller-owned state not captured by
+    /// `items`, such as favorite ids or read/unread state. The value is an invalidation
+    /// token, not row identity: change it only when those row-content inputs change.
+    ///
+    /// On macOS a changed value reloads the table's recycled rows. Native SwiftUI backends
+    /// already reevaluate their row bodies and accept this modifier for source-compatible
+    /// cross-platform list declarations.
+    public func rowContentID(_ id: some Hashable) -> Self {
+        copy { $0.rowContentID = AnyHashable(id) }
+    }
+
+    /// Rebuilds visible row content when `id` changes.
+    ///
+    /// Use ``rowContentID(_:)`` to make clear that this token invalidates hosted row
+    /// content rather than controlling the identity of the list itself.
+    @available(*, deprecated, renamed: "rowContentID(_:)")
     public func reloadID(_ id: some Hashable) -> Self {
-        copy { $0.reloadID = AnyHashable(id) }
+        rowContentID(id)
     }
 
     /// Fires when the last visible row comes within `threshold` rows of the end of the data
     /// as a user scroll settles - the trigger for load-more / infinite-scroll paging.
     ///
-    /// Unlike ``onTopRowChange``, this reflects the *bottom* of the viewport, so it fires
+    /// Unlike ``onTopRowChange(_:)``, this reflects the *bottom* of the viewport, so it fires
     /// correctly on any window size without estimating the visible-row count from row
     /// heights. A `threshold` of `0` fires only once the very last row is on screen; a larger
     /// threshold loads the next page before the user hits the bottom.
@@ -337,7 +352,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         // Honors the documented "scrolls a row into view *once*" contract: the coordinator
         // remembers the last id it scrolled to and declines repeats, so a caller who stores
         // the anchor persistently (and so never clears it via `then`) doesn't have every
-        // later update - a selection change, a reloadID bump - yank the viewport back.
+        // later update - a selection change, a rowContentID bump - yank the viewport back.
         if coordinator.scrollToTargetIfNeeded(table) {
             DispatchQueue.main.async { configuration.onScrolledToID?() }
         }
