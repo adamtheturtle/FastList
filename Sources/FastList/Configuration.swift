@@ -8,7 +8,10 @@
 #endif
 import SwiftUI
 
-/// The visual / behavioral role of a swipe action.
+/// The platform-neutral role of a list action.
+///
+/// `FastList` owns translating the role into native AppKit or SwiftUI presentation. The
+/// calling app owns the action's domain meaning and decides when an action is destructive.
 public enum FastListActionRole: Sendable {
     /// A standard action (grey background unless a ``SwipeAction/tint`` is given).
     case normal
@@ -16,8 +19,12 @@ public enum FastListActionRole: Sendable {
     case destructive
 }
 
-/// One swipe action revealed on a row edge, rendered as an `NSTableViewRowAction` - the
-/// same control Finder and Mail use for swipe-to-delete / swipe-to-flag.
+/// A platform-neutral description of one swipe action.
+///
+/// `FastList` renders this value as an `NSTableViewRowAction` on macOS and a SwiftUI swipe
+/// button on supported non-macOS platforms. The calling app owns the title, styling, and
+/// domain operation; this type is only the transport value between that app code and the
+/// native list renderer.
 public struct SwipeAction {
     /// The action's title. Always set so VoiceOver announces it, even when a
     /// ``systemImage`` replaces the visible text.
@@ -49,9 +56,11 @@ public struct SwipeAction {
     }
 }
 
-/// One entry in a row's right-click menu. Rendered as a native `NSMenuItem`, because the
-/// hosted SwiftUI row content is hit-transparent and so a SwiftUI `.contextMenu` on it
-/// would never fire.
+/// A platform-neutral description of one entry in a row's context menu.
+///
+/// `FastList` renders this value as a native `NSMenuItem` on macOS and as SwiftUI menu
+/// content on supported non-macOS platforms. Menu construction and command semantics stay
+/// in the calling app; this type only carries their native-rendering inputs.
 public enum MenuItem {
     /// A clickable menu entry.
     case button(
@@ -88,7 +97,7 @@ struct FastListConfiguration<Item: Identifiable> {
     var reachEndThreshold = 0
     var scrollToID: Item.ID?
     var onScrolledToID: (() -> Void)?
-    /// Reloads rows when caller-controlled row-content inputs change even if row ids
-    /// did not. Selection-only updates still reuse the existing table rows.
-    var reloadID: AnyHashable?
+    /// Rebuilds rows when caller-controlled row-content inputs change even if row ids did
+    /// not. Selection-only updates still reuse the existing table rows.
+    var rowContentID: AnyHashable?
 }

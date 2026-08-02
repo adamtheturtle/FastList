@@ -4,6 +4,14 @@
     @DisplayName("FastList")
 }
 
+FastList owns native list mechanics: recycled rows, selection, activation, native action
+and menu rendering, row dragging, paging signals, and scroll-position reporting. Calling
+apps own row layout and the domain meaning of actions, menus, drags, pages, and persisted
+scroll state.
+
+``SwipeAction`` and ``MenuItem`` are platform-neutral inputs to the native renderers, not
+an app design system.
+
 ## Topics
 
 ### Creating a list
@@ -33,3 +41,7 @@
 - ``FastList/FastList/onTopRowChange(_:)``
 - ``FastList/FastList/onReachEnd(threshold:perform:)``
 - ``FastList/FastList/scrollToRow(id:then:)``
+
+### Invalidating row content
+
+- ``FastList/FastList/rowContentID(_:)``
