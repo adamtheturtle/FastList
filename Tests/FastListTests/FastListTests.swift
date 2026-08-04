@@ -17,6 +17,20 @@ private final class CountingTableView: NSTableView {
     }
 }
 
+private final class DragRegistrationTableView: NSTableView {
+    var localMask: NSDragOperation = []
+    var externalMask: NSDragOperation = []
+
+    override func setDraggingSourceOperationMask(_ mask: NSDragOperation, forLocal isLocal: Bool) {
+        if isLocal {
+            localMask = mask
+        } else {
+            externalMask = mask
+        }
+        super.setDraggingSourceOperationMask(mask, forLocal: isLocal)
+    }
+}
+
 @MainActor
 @Suite struct FastListCoordinatorTests {
     private func makeCoordinator(_ rows: [Row], selection: Set<Int> = []) -> FastList<Row>.Coordinator {
@@ -195,6 +209,26 @@ private final class CountingTableView: NSTableView {
         coordinator.parent = base
         coordinator.updateContextMenuRegistration(on: table)
         #expect(table.menu == nil)
+    }
+
+    @Test func dragRegistrationTracksUpdatedConfiguration() {
+        let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+        let coordinator = base.makeCoordinator()
+        let table = DragRegistrationTableView()
+
+        coordinator.updateDragRegistration(on: table)
+        #expect(table.localMask.isEmpty)
+        #expect(table.externalMask.isEmpty)
+
+        coordinator.parent = base.onRowDrag { _ in NSPasteboardItem() }
+        coordinator.updateDragRegistration(on: table)
+        #expect(table.localMask == [.copy, .generic])
+        #expect(table.externalMask == .copy)
+
+        coordinator.parent = base
+        coordinator.updateDragRegistration(on: table)
+        #expect(table.localMask.isEmpty)
+        #expect(table.externalMask.isEmpty)
     }
 }
 

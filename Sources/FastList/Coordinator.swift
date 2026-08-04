@@ -46,6 +46,13 @@ extension FastList {
 
         // MARK: Data
 
+        /// Keeps AppKit's drag-source registration aligned with the current modifier value.
+        func updateDragRegistration(on tableView: NSTableView) {
+            let isEnabled = parent.configuration.pasteboardItem != nil
+            tableView.setDraggingSourceOperationMask(isEnabled ? [.copy, .generic] : [], forLocal: true)
+            tableView.setDraggingSourceOperationMask(isEnabled ? .copy : [], forLocal: false)
+        }
+
         func reloadIfNeeded(_ newItems: [Item], force: Bool) {
             let newItems = deduplicatedFastListItems(newItems)
             let nextRowContentID = parent.configuration.rowContentID

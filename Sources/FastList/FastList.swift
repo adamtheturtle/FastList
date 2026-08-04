@@ -320,10 +320,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         // so right-clicking an unconfigured list shows nothing.
         context.coordinator.updateContextMenuRegistration(on: table)
 
-        if configuration.pasteboardItem != nil {
-            table.setDraggingSourceOperationMask([.copy, .generic], forLocal: true)
-            table.setDraggingSourceOperationMask(.copy, forLocal: false)
-        }
+        context.coordinator.updateDragRegistration(on: table)
 
         context.coordinator.tableView = table
         context.coordinator.reloadIfNeeded(items, force: true)
@@ -361,6 +358,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         coordinator.parent = self
         guard let table = coordinator.tableView else { return }
         coordinator.updateContextMenuRegistration(on: table)
+        coordinator.updateDragRegistration(on: table)
 
         // Only reload when the row set actually changed (filter/sort/refresh) - never on a
         // bare selection change, which is the whole point of the rewrite.
