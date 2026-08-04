@@ -31,6 +31,19 @@ private final class DragRegistrationTableView: NSTableView {
     }
 }
 
+private final class SnapshotReloadTableView: NSTableView {
+    var onReload: (() -> Void)?
+
+    override func reloadData() {
+        onReload?()
+        super.reloadData()
+    }
+
+    override func rows(in _: NSRect) -> NSRange {
+        NSRange(location: 0, length: 1)
+    }
+}
+
 @MainActor
 @Suite struct FastListCoordinatorTests {
     private func makeCoordinator(_ rows: [Row], selection: Set<Int> = []) -> FastList<Row>.Coordinator {
@@ -205,6 +218,33 @@ private final class DragRegistrationTableView: NSTableView {
 
         #expect(coordinator.observedScrollView == nil)
         #expect(!scrollView.contentView.postsBoundsChangedNotifications)
+    }
+
+    @Test func suppressesTopRowCallbacksWhileReplacingTheNativeSnapshot() {
+        var reported: [Int?] = []
+        var callbacksDuringReload = -1
+        var list = FastList([Row(id: 1, name: "old")], selection: .constant([])) { Text($0.name) }
+            .onTopRowChange { reported.append($0) }
+        let coordinator = list.makeCoordinator()
+        let table = SnapshotReloadTableView()
+        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
+        table.dataSource = coordinator
+        table.delegate = coordinator
+        coordinator.tableView = table
+        coordinator.reloadIfNeeded(list.items, force: true)
+        reported.removeAll()
+
+        table.onReload = {
+            coordinator.scrollPositionChanged()
+            callbacksDuringReload = reported.count
+        }
+        list = FastList([Row(id: 2, name: "new")], selection: .constant([])) { Text($0.name) }
+            .onTopRowChange { reported.append($0) }
+        coordinator.parent = list
+        coordinator.reloadIfNeeded(list.items, force: false)
+
+        #expect(callbacksDuringReload == 0)
+        #expect(reported == [2])
     }
 
     @Test func contextMenuRegistrationTracksUpdatedConfiguration() {

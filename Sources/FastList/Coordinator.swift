@@ -18,6 +18,9 @@ extension FastList {
         private var rowContentID: AnyHashable?
         /// Guards against the selection binding and the table's selection ping-ponging.
         private var isApplyingSelection = false
+        /// Native reloads can synchronously move the viewport while AppKit is still reconciling
+        /// rows. Ignore those transient scroll notifications until both mappings agree again.
+        private var isApplyingSnapshot = false
         /// The last top row reported to `onTopRowChange`. The scroll callback now fires on every
         /// bounds change (so it covers mouse-wheel/scrollbar/keyboard scrolls, not just trackpad
         /// gestures), and this de-dupes those per-frame events down to one call per actual change.
@@ -44,43 +47,6 @@ extension FastList {
         /// teardown it would otherwise synthesize is unchanged.
         @_optimize(none)
         deinit {}
-
-        // MARK: Scroll observation lifecycle
-
-        func installScrollObservers(for scrollView: NSScrollView) {
-            removeScrollObservers()
-            observedScrollView = scrollView
-            scrollView.contentView.postsBoundsChangedNotifications = true
-            NotificationCenter.default.addObserver(
-                self,
-                selector: #selector(scrollPositionChanged),
-                name: NSView.boundsDidChangeNotification,
-                object: scrollView.contentView
-            )
-            NotificationCenter.default.addObserver(
-                self,
-                selector: #selector(scrollPositionChanged),
-                name: NSScrollView.didEndLiveScrollNotification,
-                object: scrollView
-            )
-        }
-
-        func removeScrollObservers() {
-            guard let scrollView = observedScrollView else { return }
-
-            NotificationCenter.default.removeObserver(
-                self,
-                name: NSView.boundsDidChangeNotification,
-                object: scrollView.contentView
-            )
-            NotificationCenter.default.removeObserver(
-                self,
-                name: NSScrollView.didEndLiveScrollNotification,
-                object: scrollView
-            )
-            scrollView.contentView.postsBoundsChangedNotifications = false
-            observedScrollView = nil
-        }
 
         // MARK: Data
 
@@ -109,6 +75,7 @@ extension FastList {
             if newItems.isEmpty { reportTopRow(nil) }
             guard changed else { return }
 
+            isApplyingSnapshot = true
             // `reloadData` clears native selection and can synchronously notify the delegate.
             // Keep the binding isolated from that transient empty state until the live IDs
             // have been restored below.
@@ -117,6 +84,11 @@ extension FastList {
             // reloadData drops the selection; restore it from the binding.
             applySelection(reconciledSelection)
             isApplyingSelection = false
+            isApplyingSnapshot = false
+
+            // Reconcile once from the settled native viewport. Any synchronous notifications
+            // emitted by reloadData were deliberately ignored above.
+            scrollPositionChanged()
         }
 
         func index(of id: Item.ID) -> Int? {
@@ -239,7 +211,7 @@ extension FastList {
         /// per-frame bounds stream collapses to one call per real change; `onReachEnd` consumers
         /// are expected to guard their own re-entrancy (e.g. an "already loading" flag).
         @objc func scrollPositionChanged() {
-            guard let tableView else { return }
+            guard !isApplyingSnapshot, let tableView else { return }
 
             let visible = tableView.rows(in: tableView.visibleRect)
             guard visible.length > 0 else { return }
@@ -388,6 +360,45 @@ extension FastList {
         @objc private func runMenuAction(_ sender: NSMenuItem) {
             (sender.representedObject as? MenuActionBox)?.perform()
         }
+    }
+}
+
+extension FastList.Coordinator {
+    // MARK: Scroll observation lifecycle
+
+    func installScrollObservers(for scrollView: NSScrollView) {
+        removeScrollObservers()
+        observedScrollView = scrollView
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(scrollPositionChanged),
+            name: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(scrollPositionChanged),
+            name: NSScrollView.didEndLiveScrollNotification,
+            object: scrollView
+        )
+    }
+
+    func removeScrollObservers() {
+        guard let scrollView = observedScrollView else { return }
+
+        NotificationCenter.default.removeObserver(
+            self,
+            name: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView
+        )
+        NotificationCenter.default.removeObserver(
+            self,
+            name: NSScrollView.didEndLiveScrollNotification,
+            object: scrollView
+        )
+        scrollView.contentView.postsBoundsChangedNotifications = false
+        observedScrollView = nil
     }
 }
 #endif
