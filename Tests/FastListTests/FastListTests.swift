@@ -139,6 +139,20 @@ private final class CountingTableView: NSTableView {
         // applySelection must not write back into the binding (that's the ping-pong guard).
         #expect(sink.isEmpty)
     }
+
+    @Test func removesSelectionIDsMissingFromTheNewSnapshot() {
+        var sink: Set<Int> = [1, 3]
+        let binding = Binding<Set<Int>>(get: { sink }, set: { sink = $0 })
+        let list = FastList([Row(id: 1, name: "a"), Row(id: 2, name: "b")], selection: binding) {
+            Text($0.name)
+        }
+        let coordinator = list.makeCoordinator()
+
+        coordinator.reloadIfNeeded(list.items, force: true)
+
+        #expect(sink == [1])
+        #expect(reconciledFastListSelection([1, 3], items: list.items) == [1])
+    }
 }
 
 @MainActor

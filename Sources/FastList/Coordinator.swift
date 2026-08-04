@@ -59,11 +59,13 @@ extension FastList {
                 newItems.enumerated().map { ($1.id, $0) },
                 uniquingKeysWith: { first, _ in first }
             )
+            let reconciledSelection = reconciledFastListSelection(parent.selection, items: newItems)
+            if reconciledSelection != parent.selection { parent.selection = reconciledSelection }
             guard changed else { return }
 
             tableView?.reloadData()
             // reloadData drops the selection; restore it from the binding.
-            applySelection(parent.selection)
+            applySelection(reconciledSelection)
         }
 
         func index(of id: Item.ID) -> Int? {
