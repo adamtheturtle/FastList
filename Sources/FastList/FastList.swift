@@ -82,6 +82,9 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     @Binding var selection: Set<Item.ID>
     let rowContent: (Item) -> AnyView
     var configuration = FastListConfiguration<Item>()
+    #if !os(macOS)
+        @State private var nativeReachEndGate = FastListReachEndGate()
+    #endif
 
     // MARK: Initializers
 
@@ -390,8 +393,17 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             // we render the highlight entirely via `selectionBackground`, so the selected row
             // keeps normal, readable text and no ring.
             List {
-                ForEach(items) { item in
-                    row(for: item)
+                ForEach(Array(items.enumerated()), id: \.element.id) { indexedItem in
+                    row(for: indexedItem.element)
+                        .onAppear {
+                            consumeNativeReachEnd(lastVisibleRow: indexedItem.offset)
+                        }
+                        .onChange(of: items.count) { _, _ in
+                            // A page no larger than the threshold can leave an already-visible
+                            // row inside the new threshold zone. Re-evaluate visible rows when
+                            // the count changes instead of waiting for another scroll gesture.
+                            consumeNativeReachEnd(lastVisibleRow: indexedItem.offset)
+                        }
                 }
             }
             // `.plain`, with a custom selection background (see `selectionBackground`).
@@ -405,6 +417,23 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             .listStyle(.plain)
             .onAppear(perform: reconcileSelection)
             .onChange(of: items.map(\.id)) { _, _ in reconcileSelection() }
+            .onChange(of: configuration.onReachEnd == nil) { _, isDisabled in
+                if isDisabled { nativeReachEndGate.reset() }
+            }
+        }
+
+        private func consumeNativeReachEnd(lastVisibleRow: Int) {
+            guard let onReachEnd = configuration.onReachEnd else { return }
+
+            var gate = nativeReachEndGate
+            guard gate.consume(
+                lastVisibleRow: lastVisibleRow,
+                itemCount: items.count,
+                threshold: configuration.reachEndThreshold
+            ) else { return }
+
+            nativeReachEndGate = gate
+            onReachEnd()
         }
 
         private func reconcileSelection() {

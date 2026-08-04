@@ -37,3 +37,16 @@ jobs:
 
       - name: Test
         run: swift test -v
+
+  build-ios:
+    name: Build (iOS Simulator)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: >-
+          xcodebuild -scheme FastList
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath "$RUNNER_TEMP/FastList-iOS"
+          CODE_SIGNING_ALLOWED=NO build
