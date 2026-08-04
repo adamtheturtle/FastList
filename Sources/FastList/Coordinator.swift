@@ -325,7 +325,7 @@ extension FastList {
                     menuItem.target = self
                     menuItem.isEnabled = isEnabled
                     menuItem.representedObject = MenuActionBox { [weak self] in
-                        self?.performMenuAction(for: itemID, entryIndex: entryIndex)
+                        self?.performMenuAction(for: itemID, entryIndex: entryIndex, expectedTitle: title)
                     }
                     menu.addItem(menuItem)
                 }
@@ -334,13 +334,14 @@ extension FastList {
 
         /// Re-resolves a menu action against the live snapshot so a menu left open across a
         /// deletion cannot invoke an action for an item that no longer exists.
-        func performMenuAction(for itemID: Item.ID, entryIndex: Int) {
+        func performMenuAction(for itemID: Item.ID, entryIndex: Int, expectedTitle: String? = nil) {
             guard let row = indexByID[itemID], items.indices.contains(row),
                   let builder = parent.configuration.contextMenu else { return }
 
             let entries = builder(items[row])
             guard entries.indices.contains(entryIndex),
-                  case let .button(_, isEnabled, _, action) = entries[entryIndex],
+                  case let .button(title, isEnabled, _, action) = entries[entryIndex],
+                  expectedTitle == nil || title == expectedTitle,
                   isEnabled else { return }
 
             action()

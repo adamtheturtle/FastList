@@ -252,6 +252,32 @@ private final class DragRegistrationTableView: NSTableView {
         coordinator.performMenuAction(for: 1, entryIndex: 0)
         #expect(opened == ["original", "replacement"])
     }
+
+    @Test func contextMenuActionDoesNotRetargetWhenEntriesReorder() {
+        var performed: [String] = []
+        var list = FastList([Row(id: 1, name: "row")], selection: .constant([])) { Text($0.name) }
+            .rowContextMenu { _ in
+                [
+                    .button(title: "Open") { performed.append("open") },
+                    .button(title: "Delete") { performed.append("delete") }
+                ]
+            }
+        let coordinator = list.makeCoordinator()
+        coordinator.reloadIfNeeded(list.items, force: true)
+
+        list = FastList(list.items, selection: .constant([])) { Text($0.name) }
+            .rowContextMenu { _ in
+                [
+                    .button(title: "Delete") { performed.append("delete") },
+                    .button(title: "Open") { performed.append("open") }
+                ]
+            }
+        coordinator.parent = list
+
+        // This represents clicking the first, “Open” item from the menu that was already visible.
+        coordinator.performMenuAction(for: 1, entryIndex: 0, expectedTitle: "Open")
+        #expect(performed.isEmpty)
+    }
 }
 
 @MainActor
