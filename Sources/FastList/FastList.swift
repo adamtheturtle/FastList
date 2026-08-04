@@ -318,11 +318,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         // native contextual-menu machinery runs and draws the focus-ring outline around a
         // right-clicked row that isn't selected. Only install it when a menu is configured,
         // so right-clicking an unconfigured list shows nothing.
-        if configuration.contextMenu != nil {
-            let rowMenu = NSMenu()
-            rowMenu.delegate = context.coordinator
-            table.menu = rowMenu
-        }
+        context.coordinator.updateContextMenuRegistration(on: table)
 
         if configuration.pasteboardItem != nil {
             table.setDraggingSourceOperationMask([.copy, .generic], forLocal: true)
@@ -364,6 +360,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         let coordinator = context.coordinator
         coordinator.parent = self
         guard let table = coordinator.tableView else { return }
+        coordinator.updateContextMenuRegistration(on: table)
 
         // Only reload when the row set actually changed (filter/sort/refresh) - never on a
         // bare selection change, which is the whole point of the rewrite.

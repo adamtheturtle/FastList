@@ -286,6 +286,18 @@ extension FastList {
 
         // MARK: Context menu
 
+        /// Keeps the native menu registration aligned with the current SwiftUI value.
+        func updateContextMenuRegistration(on tableView: NSTableView) {
+            guard parent.configuration.contextMenu != nil else {
+                tableView.menu = nil
+                return
+            }
+
+            let rowMenu = tableView.menu ?? NSMenu()
+            rowMenu.delegate = self
+            tableView.menu = rowMenu
+        }
+
         /// Populate the table's persistent context menu for the row the user right-clicked.
         /// Driving the menu through the table's own `menu` property plus this delegate lets
         /// AppKit's native contextual-menu machinery draw the focus-ring outline around a
