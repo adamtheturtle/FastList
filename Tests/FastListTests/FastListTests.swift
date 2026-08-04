@@ -97,6 +97,28 @@ private final class CountingTableView: NSTableView {
         #expect(opened == Row(id: 1, name: "first"))
     }
 
+    @Test func changingTheFirstDuplicateWinnerRefreshesNativeRows() {
+        let table = CountingTableView()
+        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
+        var list = FastList(
+            [Row(id: 1, name: "first"), Row(id: 1, name: "dupe")],
+            selection: .constant([])
+        ) { Text($0.name) }
+        let coordinator = list.makeCoordinator()
+        coordinator.tableView = table
+        coordinator.reloadIfNeeded(list.items, force: true)
+        #expect(table.reloadCount == 1)
+
+        list = FastList(
+            [Row(id: 1, name: "replacement"), Row(id: 1, name: "dupe")],
+            selection: .constant([])
+        ) { Text($0.name) }
+        coordinator.parent = list
+        coordinator.reloadIfNeeded(list.items, force: false)
+
+        #expect(table.reloadCount == 2)
+    }
+
     @Test func appliesSelectionToARealTableViewWithoutEchoing() {
         var sink: Set<Int> = []
         let binding = Binding<Set<Int>>(get: { sink }, set: { sink = $0 })

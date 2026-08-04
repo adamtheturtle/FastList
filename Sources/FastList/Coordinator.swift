@@ -50,6 +50,7 @@ extension FastList {
             let newItems = deduplicatedFastListItems(newItems)
             let nextRowContentID = parent.configuration.rowContentID
             let changed = force
+                || parent.containedDuplicateIDs
                 || newItems.map(\.id) != items.map(\.id)
                 || nextRowContentID != rowContentID
             items = newItems

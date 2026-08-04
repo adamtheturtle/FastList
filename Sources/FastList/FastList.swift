@@ -68,6 +68,9 @@ func deduplicatedFastListItems<Item: Identifiable>(_ items: [Item]) -> [Item] wh
 public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// The rows to show, already filtered and sorted by the caller.
     let items: [Item]
+    /// Duplicate input is exceptional and must refresh native cells on every update: the
+    /// first-winning value can change even when its deduplicated ID sequence does not.
+    let containedDuplicateIDs: Bool
     @Binding var selection: Set<Item.ID>
     let rowContent: (Item) -> AnyView
     var configuration = FastListConfiguration<Item>()
@@ -87,7 +90,9 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         selection: Binding<Set<Item.ID>>,
         @ViewBuilder row: @escaping (Item) -> some View
     ) {
-        self.items = deduplicatedFastListItems(items)
+        let deduplicatedItems = deduplicatedFastListItems(items)
+        self.items = deduplicatedItems
+        containedDuplicateIDs = deduplicatedItems.count != items.count
         _selection = selection
         rowContent = { AnyView(row($0)) }
     }
