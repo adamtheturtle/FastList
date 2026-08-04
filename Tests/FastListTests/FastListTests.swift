@@ -230,6 +230,54 @@ private final class DragRegistrationTableView: NSTableView {
         #expect(table.localMask.isEmpty)
         #expect(table.externalMask.isEmpty)
     }
+
+    @Test func contextMenuActionsResolveAgainstTheCurrentSnapshot() {
+        var opened: [String] = []
+        var list = FastList([Row(id: 1, name: "original")], selection: .constant([])) { Text($0.name) }
+            .rowContextMenu { row in [.button(title: "Open") { opened.append(row.name) }] }
+        let coordinator = list.makeCoordinator()
+        coordinator.reloadIfNeeded(list.items, force: true)
+
+        coordinator.performMenuAction(for: 1, entryIndex: 0)
+        #expect(opened == ["original"])
+
+        coordinator.reloadIfNeeded([], force: true)
+        coordinator.performMenuAction(for: 1, entryIndex: 0)
+        #expect(opened == ["original"])
+
+        list = FastList([Row(id: 1, name: "replacement")], selection: .constant([])) { Text($0.name) }
+            .rowContextMenu { row in [.button(title: "Open") { opened.append(row.name) }] }
+        coordinator.parent = list
+        coordinator.reloadIfNeeded(list.items, force: true)
+        coordinator.performMenuAction(for: 1, entryIndex: 0)
+        #expect(opened == ["original", "replacement"])
+    }
+
+    @Test func contextMenuActionDoesNotRetargetWhenEntriesReorder() {
+        var performed: [String] = []
+        var list = FastList([Row(id: 1, name: "row")], selection: .constant([])) { Text($0.name) }
+            .rowContextMenu { _ in
+                [
+                    .button(title: "Open") { performed.append("open") },
+                    .button(title: "Delete") { performed.append("delete") }
+                ]
+            }
+        let coordinator = list.makeCoordinator()
+        coordinator.reloadIfNeeded(list.items, force: true)
+
+        list = FastList(list.items, selection: .constant([])) { Text($0.name) }
+            .rowContextMenu { _ in
+                [
+                    .button(title: "Delete") { performed.append("delete") },
+                    .button(title: "Open") { performed.append("open") }
+                ]
+            }
+        coordinator.parent = list
+
+        // This represents clicking the first, “Open” item from the menu that was already visible.
+        coordinator.performMenuAction(for: 1, entryIndex: 0, expectedTitle: "Open")
+        #expect(performed.isEmpty)
+    }
 }
 
 @MainActor

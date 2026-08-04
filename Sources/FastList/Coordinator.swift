@@ -314,19 +314,37 @@ extension FastList {
             let row = tableView?.clickedRow ?? -1
             guard items.indices.contains(row), let builder = parent.configuration.contextMenu else { return }
 
+            let itemID = items[row].id
             menu.autoenablesItems = false
-            for entry in builder(items[row]) {
+            for (entryIndex, entry) in builder(items[row]).enumerated() {
                 switch entry {
                 case .separator:
                     menu.addItem(.separator())
-                case let .button(title, isEnabled, _, action):
+                case let .button(title, isEnabled, _, _):
                     let menuItem = NSMenuItem(title: title, action: #selector(runMenuAction(_:)), keyEquivalent: "")
                     menuItem.target = self
                     menuItem.isEnabled = isEnabled
-                    menuItem.representedObject = MenuActionBox(action)
+                    menuItem.representedObject = MenuActionBox { [weak self] in
+                        self?.performMenuAction(for: itemID, entryIndex: entryIndex, expectedTitle: title)
+                    }
                     menu.addItem(menuItem)
                 }
             }
+        }
+
+        /// Re-resolves a menu action against the live snapshot so a menu left open across a
+        /// deletion cannot invoke an action for an item that no longer exists.
+        func performMenuAction(for itemID: Item.ID, entryIndex: Int, expectedTitle: String? = nil) {
+            guard let row = indexByID[itemID], items.indices.contains(row),
+                  let builder = parent.configuration.contextMenu else { return }
+
+            let entries = builder(items[row])
+            guard entries.indices.contains(entryIndex),
+                  case let .button(title, isEnabled, _, action) = entries[entryIndex],
+                  expectedTitle == nil || title == expectedTitle,
+                  isEnabled else { return }
+
+            action()
         }
 
         @objc private func runMenuAction(_ sender: NSMenuItem) {
