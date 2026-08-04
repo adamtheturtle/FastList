@@ -165,6 +165,19 @@ private final class CountingTableView: NSTableView {
         #expect(table.selectedRowIndexes == IndexSet(integer: 0))
         #expect(reconciledFastListSelection([1, 3], items: list.items) == [1])
     }
+
+    @Test func reportsNilOnceWhenTheSnapshotBecomesEmpty() {
+        var reported: [Int?] = []
+        let list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+            .onTopRowChange { reported.append($0) }
+        let coordinator = list.makeCoordinator()
+        coordinator.reportTopRow(1)
+
+        coordinator.reloadIfNeeded([], force: true)
+        coordinator.reloadIfNeeded([], force: false)
+
+        #expect(reported == [1, nil])
+    }
 }
 
 @MainActor

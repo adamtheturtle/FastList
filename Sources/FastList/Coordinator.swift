@@ -61,6 +61,7 @@ extension FastList {
             )
             let reconciledSelection = reconciledFastListSelection(parent.selection, items: newItems)
             if reconciledSelection != parent.selection { parent.selection = reconciledSelection }
+            if newItems.isEmpty { reportTopRow(nil) }
             guard changed else { return }
 
             // `reloadData` clears native selection and can synchronously notify the delegate.
@@ -201,10 +202,7 @@ extension FastList {
             if let onTopRowChange = parent.configuration.onTopRowChange,
                items.indices.contains(visible.location) {
                 let topID = items[visible.location].id
-                if topID != lastTopRowID {
-                    lastTopRowID = topID
-                    onTopRowChange(topID)
-                }
+                reportTopRow(topID, using: onTopRowChange)
             }
 
             if let onReachEnd = parent.configuration.onReachEnd {
@@ -218,6 +216,15 @@ extension FastList {
             } else {
                 reachEndFiredAtCount = nil
             }
+        }
+
+        /// Reports a changed top-row identity. Keeping the last non-empty ID lets a later
+        /// empty snapshot emit `nil` exactly once, matching `onTopRowChange`'s contract.
+        func reportTopRow(_ id: Item.ID?, using callback: ((Item.ID?) -> Void)? = nil) {
+            guard id != lastTopRowID else { return }
+
+            lastTopRowID = id
+            (callback ?? parent.configuration.onTopRowChange)?(id)
         }
 
         /// Whether the viewport's bottom has reached the load-more threshold *and* the list has
