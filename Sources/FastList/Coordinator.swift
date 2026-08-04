@@ -59,11 +59,18 @@ extension FastList {
                 newItems.enumerated().map { ($1.id, $0) },
                 uniquingKeysWith: { first, _ in first }
             )
+            let reconciledSelection = reconciledFastListSelection(parent.selection, items: newItems)
+            if reconciledSelection != parent.selection { parent.selection = reconciledSelection }
             guard changed else { return }
 
+            // `reloadData` clears native selection and can synchronously notify the delegate.
+            // Keep the binding isolated from that transient empty state until the live IDs
+            // have been restored below.
+            isApplyingSelection = true
             tableView?.reloadData()
             // reloadData drops the selection; restore it from the binding.
-            applySelection(parent.selection)
+            applySelection(reconciledSelection)
+            isApplyingSelection = false
         }
 
         func index(of id: Item.ID) -> Int? {
@@ -114,9 +121,10 @@ extension FastList {
             let rows = IndexSet(ids.compactMap { indexByID[$0] })
             guard rows != tableView.selectedRowIndexes else { return }
 
+            let wasApplyingSelection = isApplyingSelection
             isApplyingSelection = true
             tableView.selectRowIndexes(rows, byExtendingSelection: false)
-            isApplyingSelection = false
+            isApplyingSelection = wasApplyingSelection
         }
 
         public func tableViewSelectionDidChange(_ notification: Notification) {

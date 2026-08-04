@@ -15,6 +15,14 @@ func deduplicatedFastListItems<Item: Identifiable>(_ items: [Item]) -> [Item] wh
     return items.filter { seenIDs.insert($0.id).inserted }
 }
 
+/// Removes selection IDs that are no longer represented by the current item snapshot.
+func reconciledFastListSelection<Item: Identifiable>(
+    _ selection: Set<Item.ID>,
+    items: [Item]
+) -> Set<Item.ID> where Item.ID: Hashable {
+    selection.intersection(Set(items.map(\.id)))
+}
+
 /// A drop-in replacement for SwiftUI's `List`, backed by `NSTableView` on macOS for
 /// large-list performance and by a native SwiftUI `List` on iOS / iPadOS.
 ///
@@ -411,6 +419,13 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             // sidebar, so we drive selection ourselves and draw our own inset,
             // rounded-rectangle highlight instead - no bleed, no clipping, no system emphasis.
             .listStyle(.plain)
+            .onAppear(perform: reconcileSelection)
+            .onChange(of: items.map(\.id)) { _, _ in reconcileSelection() }
+        }
+
+        private func reconcileSelection() {
+            let reconciled = reconciledFastListSelection(selection, items: items)
+            if reconciled != selection { selection = reconciled }
         }
 
         /// The per-row selection highlight: an inset, rounded-rectangle fill when the row
