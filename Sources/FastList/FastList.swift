@@ -8,6 +8,13 @@
 #endif
 import SwiftUI
 
+/// Keeps native row indices and SwiftUI identities unambiguous. The first item supplied for
+/// an ID wins, preserving caller order while dropping later duplicates.
+func deduplicatedFastListItems<Item: Identifiable>(_ items: [Item]) -> [Item] where Item.ID: Hashable {
+    var seenIDs = Set<Item.ID>()
+    return items.filter { seenIDs.insert($0.id).inserted }
+}
+
 /// A drop-in replacement for SwiftUI's `List`, backed by `NSTableView` on macOS for
 /// large-list performance and by a native SwiftUI `List` on iOS / iPadOS.
 ///
@@ -61,6 +68,9 @@ import SwiftUI
 public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// The rows to show, already filtered and sorted by the caller.
     let items: [Item]
+    /// Duplicate input is exceptional and must refresh native cells on every update: the
+    /// first-winning value can change even when its deduplicated ID sequence does not.
+    let containedDuplicateIDs: Bool
     @Binding var selection: Set<Item.ID>
     let rowContent: (Item) -> AnyView
     var configuration = FastListConfiguration<Item>()
@@ -70,7 +80,8 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// Creates a list with a multiple-selection binding.
     ///
     /// - Parameters:
-    ///   - items: The rows to display, already filtered and sorted.
+    ///   - items: The rows to display, already filtered and sorted. If IDs repeat, the
+    ///     first item for each ID is displayed and later duplicates are ignored.
     ///   - selection: A binding to the set of selected row ids.
     ///   - row: Builds the SwiftUI content for a row. Make the non-interactive parts
     ///     hit-transparent (see the type's discussion).
@@ -79,7 +90,9 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         selection: Binding<Set<Item.ID>>,
         @ViewBuilder row: @escaping (Item) -> some View
     ) {
-        self.items = items
+        let deduplicatedItems = deduplicatedFastListItems(items)
+        self.items = deduplicatedItems
+        containedDuplicateIDs = deduplicatedItems.count != items.count
         _selection = selection
         rowContent = { AnyView(row($0)) }
     }

@@ -47,8 +47,10 @@ extension FastList {
         // MARK: Data
 
         func reloadIfNeeded(_ newItems: [Item], force: Bool) {
+            let newItems = deduplicatedFastListItems(newItems)
             let nextRowContentID = parent.configuration.rowContentID
             let changed = force
+                || parent.containedDuplicateIDs
                 || newItems.map(\.id) != items.map(\.id)
                 || nextRowContentID != rowContentID
             items = newItems

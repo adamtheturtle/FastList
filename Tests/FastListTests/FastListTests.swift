@@ -70,6 +70,53 @@ private final class CountingTableView: NSTableView {
         let coordinator = makeCoordinator([])
         coordinator.reloadIfNeeded([Row(id: 1, name: "first"), Row(id: 1, name: "dupe")], force: true)
         #expect(coordinator.index(of: 1) == 0)
+        #expect(coordinator.numberOfRows(in: NSTableView()) == 1)
+    }
+
+    @Test func duplicateIDsRenderAndActivateOnlyTheFirstItem() {
+        let rows = [
+            Row(id: 1, name: "first"),
+            Row(id: 1, name: "dupe"),
+            Row(id: 2, name: "unique")
+        ]
+        var opened: Row?
+        let list = FastList(rows, selection: .constant([])) { Text($0.name) }
+            .onReturnKey { opened = $0 }
+        #expect(list.items.map(\.name) == ["first", "unique"])
+
+        let coordinator = list.makeCoordinator()
+        let table = NSTableView()
+        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
+        table.dataSource = coordinator
+        table.delegate = coordinator
+        coordinator.tableView = table
+        coordinator.reloadIfNeeded(list.items, force: true)
+        table.selectRowIndexes([0], byExtendingSelection: false)
+
+        #expect(coordinator.handleReturn())
+        #expect(opened == Row(id: 1, name: "first"))
+    }
+
+    @Test func changingTheFirstDuplicateWinnerRefreshesNativeRows() {
+        let table = CountingTableView()
+        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
+        var list = FastList(
+            [Row(id: 1, name: "first"), Row(id: 1, name: "dupe")],
+            selection: .constant([])
+        ) { Text($0.name) }
+        let coordinator = list.makeCoordinator()
+        coordinator.tableView = table
+        coordinator.reloadIfNeeded(list.items, force: true)
+        #expect(table.reloadCount == 1)
+
+        list = FastList(
+            [Row(id: 1, name: "replacement"), Row(id: 1, name: "dupe")],
+            selection: .constant([])
+        ) { Text($0.name) }
+        coordinator.parent = list
+        coordinator.reloadIfNeeded(list.items, force: false)
+
+        #expect(table.reloadCount == 2)
     }
 
     @Test func appliesSelectionToARealTableViewWithoutEchoing() {
