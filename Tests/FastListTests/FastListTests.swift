@@ -193,6 +193,20 @@ private final class DragRegistrationTableView: NSTableView {
         #expect(reported == [1, nil])
     }
 
+    @Test func scrollObservationIsRemovedDuringTeardown() {
+        let coordinator = makeCoordinator([])
+        let scrollView = NSScrollView()
+        coordinator.installScrollObservers(for: scrollView)
+
+        #expect(coordinator.observedScrollView === scrollView)
+        #expect(scrollView.contentView.postsBoundsChangedNotifications)
+
+        FastList<Row>.dismantleNSView(scrollView, coordinator: coordinator)
+
+        #expect(coordinator.observedScrollView == nil)
+        #expect(!scrollView.contentView.postsBoundsChangedNotifications)
+    }
+
     @Test func contextMenuRegistrationTracksUpdatedConfiguration() {
         let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
         let coordinator = base.makeCoordinator()
