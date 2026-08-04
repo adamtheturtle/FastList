@@ -25,13 +25,9 @@ extension FastList {
         /// bounds change (so it covers mouse-wheel/scrollbar/keyboard scrolls, not just trackpad
         /// gestures), and this de-dupes those per-frame events down to one call per actual change.
         private var lastTopRowID: Item.ID?
-        /// The row count the list had when `onReachEnd` last fired, or `nil` if it hasn't fired
-        /// for the current data. Level-triggered on the count rather than edge-triggered on
-        /// "was near the end": the per-frame bounds stream can't re-fire a runaway paging loop
-        /// (the count doesn't change until a page actually lands), but any change in the count -
-        /// a page appended, or the data replaced by a filter - re-arms it. See
-        /// ``consumeReachEnd(lastVisibleRow:itemCount:threshold:)``.
-        private var reachEndFiredAtCount: Int?
+        /// Shared with the native SwiftUI backend so every platform has identical once-per-count
+        /// paging semantics.
+        private var reachEndGate = FastListReachEndGate()
         /// The id `scrollToRow(id:)` last scrolled to, so a target that stays set across updates
         /// scrolls once rather than on every update. Cleared when the target goes back to `nil`,
         /// so re-setting the same id later scrolls again.
@@ -231,7 +227,7 @@ extension FastList {
                     onReachEnd()
                 }
             } else {
-                reachEndFiredAtCount = nil
+                reachEndGate.reset()
             }
         }
 
@@ -261,12 +257,11 @@ extension FastList {
         /// - Returns: Whether `onReachEnd` should fire now. Firing is recorded, so a second call
         ///   at the same count returns `false`.
         func consumeReachEnd(lastVisibleRow: Int, itemCount: Int, threshold: Int) -> Bool {
-            guard (0 ..< itemCount).contains(lastVisibleRow),
-                  lastVisibleRow >= itemCount - 1 - threshold,
-                  reachEndFiredAtCount != itemCount else { return false }
-
-            reachEndFiredAtCount = itemCount
-            return true
+            reachEndGate.consume(
+                lastVisibleRow: lastVisibleRow,
+                itemCount: itemCount,
+                threshold: threshold
+            )
         }
 
         // MARK: Swipe actions
