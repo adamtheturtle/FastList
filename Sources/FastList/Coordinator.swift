@@ -12,6 +12,7 @@ extension FastList {
     public final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
         var parent: FastList
         weak var tableView: NSTableView?
+        private(set) weak var observedScrollView: NSScrollView?
         private var items: [Item] = []
         private var indexByID: [Item.ID: Int] = [:]
         private var rowContentID: AnyHashable?
@@ -43,6 +44,43 @@ extension FastList {
         /// teardown it would otherwise synthesize is unchanged.
         @_optimize(none)
         deinit {}
+
+        // MARK: Scroll observation lifecycle
+
+        func installScrollObservers(for scrollView: NSScrollView) {
+            removeScrollObservers()
+            observedScrollView = scrollView
+            scrollView.contentView.postsBoundsChangedNotifications = true
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(scrollPositionChanged),
+                name: NSView.boundsDidChangeNotification,
+                object: scrollView.contentView
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(scrollPositionChanged),
+                name: NSScrollView.didEndLiveScrollNotification,
+                object: scrollView
+            )
+        }
+
+        func removeScrollObservers() {
+            guard let scrollView = observedScrollView else { return }
+
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSView.boundsDidChangeNotification,
+                object: scrollView.contentView
+            )
+            NotificationCenter.default.removeObserver(
+                self,
+                name: NSScrollView.didEndLiveScrollNotification,
+                object: scrollView
+            )
+            scrollView.contentView.postsBoundsChangedNotifications = false
+            observedScrollView = nil
+        }
 
         // MARK: Data
 
