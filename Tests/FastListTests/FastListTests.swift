@@ -663,16 +663,6 @@ private extension NSEvent {
         #expect(base.configuration.rowContentID == nil)
     }
 
-    /// Keeps the compatibility spelling covered until both apps migrate to
-    /// `rowContentID(_:)`.
-    @available(*, deprecated)
-    @Test func reloadIDForwardsToRowContentID() {
-        let list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
-            .reloadID("legacy")
-
-        #expect(list.configuration.rowContentID == AnyHashable("legacy"))
-    }
-
     @Test func onReachEndStoresThresholdAndAction() {
         let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
         #expect(base.configuration.onReachEnd == nil)
