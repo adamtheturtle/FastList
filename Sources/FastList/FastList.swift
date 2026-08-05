@@ -229,15 +229,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.rowContentID = AnyHashable(id) }
     }
 
-    /// Rebuilds visible row content when `id` changes.
-    ///
-    /// Use ``rowContentID(_:)`` to make clear that this token invalidates hosted row
-    /// content rather than controlling the identity of the list itself.
-    @available(*, deprecated, renamed: "rowContentID(_:)")
-    public func reloadID(_ id: some Hashable) -> Self {
-        rowContentID(id)
-    }
-
     /// Fires when the last visible row comes within `threshold` rows of the end of the data
     /// as a user scroll settles - the trigger for load-more / infinite-scroll paging.
     ///
