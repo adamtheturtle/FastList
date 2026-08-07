@@ -50,3 +50,17 @@ jobs:
           -destination 'generic/platform=iOS Simulator'
           -derivedDataPath "$RUNNER_TEMP/FastList-iOS"
           CODE_SIGNING_ALLOWED=NO build
+
+  prose:
+    name: Vale
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v9.0.0
+      # ClearProse bans em dashes.  The style package is pinned in
+      # ``.vale.ini`` and ``vale sync`` downloads it into the gitignored
+      # ``styles`` directory.
+      - name: Sync Vale styles
+        run: uvx vale@3.13.0.0 sync
+      - name: Lint prose
+        run: git ls-files '*.md' | xargs --no-run-if-empty uvx vale@3.13.0.0
