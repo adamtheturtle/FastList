@@ -57,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v9.0.0
-      # ClearProse bans em dashes.  The style package is pinned in
+      # ai-tells bans em dashes and other AI-written prose patterns.  The style package is pinned in
       # ``.vale.ini`` and ``vale sync`` downloads it into the gitignored
       # ``styles`` directory.
       - name: Sync Vale styles
