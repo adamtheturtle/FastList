@@ -471,6 +471,20 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             onReachEnd()
         }
 
+        private func handleNativeRowTap(_ item: Item) {
+            #if os(iOS)
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                if selection.contains(item.id) {
+                    selection.remove(item.id)
+                } else {
+                    selection.insert(item.id)
+                }
+                return
+            }
+            #endif
+            selection = [item.id]
+        }
+
         private func reconcileSelection() {
             let reconciled = reconciledFastListSelection(selection, items: items)
             if reconciled != selection { selection = reconciled }
@@ -569,7 +583,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                     configuration.onDoubleClick?(item)
                 }
                 .onTapGesture(count: 1) {
-                    selection = [item.id]
+                    handleNativeRowTap(item)
                 }
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
                 .listRowBackground(selectionBackground(isSelected: isSelected))
