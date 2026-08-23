@@ -90,8 +90,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         @State private var lastNativeTopRowID: Item.ID?
         /// Honors ``scrollToRow(id:then:)`` once until the target is cleared, matching macOS.
         @State private var lastHonoredScrollToID: Item.ID?
-        @State private var lastNativeVisibleRange: ClosedRange<Int>?
-        @State private var lastPrefetchedThroughRow = -1
     #endif
 
     // MARK: Initializers
@@ -272,9 +270,14 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.rowContentID = AnyHashable(id) }
     }
 
-    /// Draws alternating row backgrounds on every second row.
-    public func alternatingRowBackgrounds(_ enabled: Bool = true) -> Self {
-        copy { $0.alternatingRowBackgrounds = enabled }
+    /// Pins a header view above the list rows.
+    public func listHeader<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> Self {
+        copy { $0.listHeaderContent = { AnyView(content()) } }
+    }
+
+    /// Pins a footer view below the list rows.
+    public func listFooter<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> Self {
+        copy { $0.listFooterContent = { AnyView(content()) } }
     }
 
     /// Fires when the last visible row comes within `threshold` rows of the end of the data
@@ -331,29 +334,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// ```
     public func emptyState<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> Self {
         copy { $0.emptyStateContent = { AnyView(content()) } }
-    }
-
-    /// Reports the inclusive range of row indices currently visible in the viewport.
-    ///
-    /// Indices are zero-based positions in the `items` array you passed to ``FastList``,
-    /// updated whenever the visible rect changes.
-    public func onVisibleRowRangeChange(_ action: @escaping (ClosedRange<Int>) -> Void) -> Self {
-        copy { $0.onVisibleRowRangeChange = action }
-    }
-
-    /// Prefetches upcoming rows when the viewport nears rows that are not yet loaded.
-    ///
-    /// ```swift
-    /// .onPrefetchRows(count: 20) { upcoming in warmCache(for: upcoming) }
-    /// ```
-    public func onPrefetchRows(
-        count: Int = 10,
-        perform: @escaping (_ upcoming: [Item]) -> Void
-    ) -> Self {
-        copy {
-            $0.prefetchRowCount = count
-            $0.onPrefetchRows = perform
-        }
     }
 
     private func copy(_ mutate: (inout FastListConfiguration<Item>) -> Void) -> Self {
@@ -434,6 +414,10 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         coordinator.reloadIfNeeded(items, force: false)
         coordinator.applySelection(selection)
 
+        container.updateChrome(
+            header: configuration.listHeaderContent?(),
+            footer: configuration.listFooterContent?()
+        )
         let showsEmpty = items.isEmpty && configuration.emptyStateContent != nil
         container.updateEmptyState(configuration.emptyStateContent?(), isVisible: showsEmpty)
 
@@ -486,11 +470,19 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// Return share the same modifiers as the macOS backend.
     extension FastList: View {
         public var body: some View {
-            Group {
-                if items.isEmpty, let emptyStateContent = configuration.emptyStateContent {
-                    emptyStateContent()
-                } else {
-                    nativeListBody
+            VStack(spacing: 0) {
+                if let listHeaderContent = configuration.listHeaderContent {
+                    listHeaderContent()
+                }
+                Group {
+                    if items.isEmpty, let emptyStateContent = configuration.emptyStateContent {
+                        emptyStateContent()
+                    } else {
+                        nativeListBody
+                    }
+                }
+                if let listFooterContent = configuration.listFooterContent {
+                    listFooterContent()
                 }
             }
         }
@@ -508,7 +500,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             ScrollViewReader { proxy in
                 List {
                     ForEach(Array(items.enumerated()), id: \.element.id) { indexedItem in
-                        row(for: indexedItem.element, at: indexedItem.offset)
+                        row(for: indexedItem.element)
                             .id(indexedItem.element.id)
                             .background {
                                 GeometryReader { geometry in
@@ -541,10 +533,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                 // rounded-rectangle highlight instead - no bleed, no clipping, no system emphasis.
                 .listStyle(.plain)
                 .coordinateSpace(name: "fastListNative")
-                .onPreferenceChange(NativeVisibleRowMinYKey.self) { minYs in
-                    reportNativeTopRow(from: minYs)
-                    reportNativeVisibleRange(from: minYs)
-                }
+                .onPreferenceChange(NativeVisibleRowMinYKey.self, perform: reportNativeTopRow(from:))
                 .onAppear {
                     reconcileSelection()
                     honorNativeScrollToIfNeeded(proxy: proxy)
@@ -581,21 +570,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
 
             nativeReachEndGate = gate
             onReachEnd()
-            prefetchNativeRowsIfNeeded(lastVisibleRow: lastVisibleRow)
-        }
-
-        private func prefetchNativeRowsIfNeeded(lastVisibleRow: Int) {
-            guard let onPrefetchRows = configuration.onPrefetchRows,
-                  items.indices.contains(lastVisibleRow) else { return }
-
-            let target = min(lastVisibleRow + configuration.prefetchRowCount, items.count - 1)
-            guard target > lastPrefetchedThroughRow else { return }
-
-            let start = lastPrefetchedThroughRow + 1
-            guard start <= target else { return }
-
-            lastPrefetchedThroughRow = target
-            onPrefetchRows(Array(items[start ... target]))
         }
 
         private func handleNativeRowTap(_ item: Item) {
@@ -642,22 +616,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             configuration.onTopRowChange?(id)
         }
 
-        private func reportNativeVisibleRange(from minYs: [Int: CGFloat]) {
-            guard let onVisibleRowRangeChange = configuration.onVisibleRowRangeChange else { return }
-            guard !items.isEmpty else { return }
-
-            let visible = minYs.keys.filter { index in
-                guard let minY = minYs[index] else { return false }
-                return minY > -1
-            }.sorted()
-            guard let lower = visible.first, let upper = visible.last else { return }
-
-            let range = lower ... upper
-            guard range != lastNativeVisibleRange else { return }
-            lastNativeVisibleRange = range
-            onVisibleRowRangeChange(range)
-        }
-
         private func honorNativeScrollToIfNeeded(proxy: ScrollViewProxy) {
             guard let id = configuration.scrollToID else {
                 lastHonoredScrollToID = nil
@@ -688,17 +646,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         /// leading/trailing edges (so it can't bleed behind the split-view sidebar) and
         /// inside the row (so it can't clip the row's content).
         @ViewBuilder
-        private func rowBackground(isSelected: Bool, index: Int) -> some View {
-            if isSelected {
-                selectionBackground(isSelected: true)
-            } else if configuration.alternatingRowBackgrounds, index.isMultiple(of: 2) {
-                Color.primary.opacity(0.04)
-            } else {
-                Color.clear
-            }
-        }
-
-        @ViewBuilder
         private func selectionBackground(isSelected: Bool) -> some View {
             if isSelected {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -711,7 +658,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         }
 
         @ViewBuilder
-        private func row(for item: Item, at index: Int) -> some View {
+        private func row(for item: Item) -> some View {
             let leading = configuration.leadingSwipe?(item) ?? []
             let trailing = configuration.trailingSwipe?(item) ?? []
             let menu = configuration.contextMenu?(item, selection) ?? []
@@ -742,7 +689,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                     handleNativeRowTap(item)
                 }
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
-                .listRowBackground(rowBackground(isSelected: isSelected, index: index))
+                .listRowBackground(selectionBackground(isSelected: isSelected))
                 .swipeActions(edge: .leading) { swipeButtons(leading) }
                 .swipeActions(edge: .trailing) { swipeButtons(trailing) }
             #endif
