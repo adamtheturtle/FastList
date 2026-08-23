@@ -387,7 +387,6 @@ private final class SnapshotReloadTableView: NSTableView {
         #expect(opened == ["original", "replacement"])
     }
 
-
     @Test func hoverIndexClampsWhenTheRowSetShrinks() {
         let table = PartialReloadTableView()
         table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
@@ -414,6 +413,23 @@ private final class SnapshotReloadTableView: NSTableView {
         // Stale hover must not reload an out-of-bounds row.
         coordinator.updateHoveredRow(2, in: table)
         #expect(table.partialReloadRowIndexes.isEmpty)
+    }
+
+    @Test func selectionAnchorRemapsWhenRowsReorder() {
+        let rows = [Row(id: 1, name: "a"), Row(id: 2, name: "b"), Row(id: 3, name: "c")]
+        let coordinator = makeCoordinator(rows)
+        coordinator.reloadIfNeeded(rows, force: true)
+        coordinator.testingSetSelectionAnchorRow(0) // id 1
+        #expect(coordinator.testingSelectionAnchorRow == 0)
+
+        coordinator.reloadIfNeeded(
+            [Row(id: 3, name: "c"), Row(id: 1, name: "a"), Row(id: 2, name: "b")],
+            force: false
+        )
+        #expect(coordinator.testingSelectionAnchorRow == 1)
+
+        coordinator.reloadIfNeeded([Row(id: 2, name: "b"), Row(id: 3, name: "c")], force: false)
+        #expect(coordinator.testingSelectionAnchorRow == nil)
     }
 
     @Test func contextMenuActionDoesNotRetargetWhenEntriesReorder() {
