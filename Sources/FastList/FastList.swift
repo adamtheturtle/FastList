@@ -674,6 +674,10 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
 
         private func handleNativeRowTap(_ item: Item) {
             guard configuration.selectionMode != .none else { return }
+            if configuration.selectionMode == .single {
+                selection = [item.id]
+                return
+            }
             #if os(iOS)
             if UIDevice.current.userInterfaceIdiom == .pad {
                 if selection.contains(item.id) {
