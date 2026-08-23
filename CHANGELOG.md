@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- macOS `.focusRing(_:)` to choose default, none, or exterior focus rings.
 - Shared `FastListReachEndGate` for once-per-row-count paging on macOS and iOS.
 - iOS / iPadOS `onReachEnd` wiring on the native SwiftUI `List` backend.
 - Vale prose lint and Dependabot auto-merge for GitHub Actions.

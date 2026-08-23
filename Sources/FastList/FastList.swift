@@ -283,6 +283,14 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.accessibilityAnnouncesSelectionChanges = enabled }
     }
 
+
+    /// Customizes the AppKit focus ring drawn around the table and its rows.
+    #if os(macOS)
+    public func focusRing(_ style: FastListFocusRing) -> Self {
+        copy { $0.focusRing = style }
+    }
+    #endif
+
     /// Highlights the row under the pointer on macOS.
     public func hoverHighlight(_ enabled: Bool = true) -> Self {
         copy { $0.highlightsRowsOnHover = enabled }
@@ -401,6 +409,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         table.style = .inset
         table.usesAutomaticRowHeights = true
         configureSelection(for: table)
+        applyFocusRing(to: table)
         table.usesAlternatingRowBackgroundColors = configuration.alternatingRowBackgrounds
         table.allowsEmptySelection = true
         table.selectionHighlightStyle = .regular
@@ -457,6 +466,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         coordinator.parent = self
         guard let table = coordinator.tableView else { return }
         configureSelection(for: table)
+        applyFocusRing(to: table)
         table.usesAlternatingRowBackgroundColors = configuration.alternatingRowBackgrounds
         coordinator.updateContextMenuRegistration(on: table)
         coordinator.updateDragRegistration(on: table)
@@ -491,6 +501,17 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// highlight at all. (`NSTableView` has no `isSelectable`; the delegate is the supported
     /// way to make a table non-selectable, and unlike `allowsEmptySelection` juggling it also
     /// covers Select All and keyboard navigation.)
+
+    func applyFocusRing(to table: NSTableView) {
+        let nsType: NSFocusRingType
+        switch configuration.focusRing {
+        case .default: nsType = .default
+        case .none: nsType = .none
+        case .exterior: nsType = .exterior
+        }
+        table.focusRingType = nsType
+    }
+
     func configureSelection(for table: NSTableView) {
         table.allowsMultipleSelection = configuration.selectionMode == .multiple
     }

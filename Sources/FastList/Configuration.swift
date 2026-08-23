@@ -27,6 +27,17 @@ public enum FastListSelectionMode: Sendable {
 ///
 /// `FastList` owns translating the role into native AppKit or SwiftUI presentation. The
 /// calling app owns the action's domain meaning and decides when an action is destructive.
+
+/// Focus-ring drawing for the macOS table and its rows.
+public enum FastListFocusRing: Sendable {
+    /// System default focus ring.
+    case `default`
+    /// No focus ring.
+    case none
+    /// Exterior focus ring around the focused view.
+    case exterior
+}
+
 public enum FastListActionRole: Sendable {
     /// A standard action (grey background unless a ``SwipeAction/tint`` is given).
     case normal
@@ -133,4 +144,8 @@ struct FastListConfiguration<Item: Identifiable> {
     /// Reports the inclusive row-index range currently intersecting the viewport.
     var onVisibleRowRangeChange: ((ClosedRange<Int>) -> Void)?
     var alternatingRowBackgrounds = false
+    #if os(macOS)
+        var focusRing: FastListFocusRing = .default
+    #endif
 }
+

@@ -762,6 +762,23 @@ private extension NSEvent {
         #expect(base.configuration.onReachEnd == nil)
     }
 
+
+    @Test func focusRingConfiguresTable() {
+        let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+        #expect(base.configuration.focusRing == .default)
+
+        let none = base.focusRing(.none)
+        #expect(none.configuration.focusRing == .none)
+
+        let table = NSTableView()
+        none.applyFocusRing(to: table)
+        #expect(table.focusRingType == .none)
+
+        let exterior = base.focusRing(.exterior)
+        exterior.applyFocusRing(to: table)
+        #expect(table.focusRingType == .exterior)
+    }
+
     @Test func swipeEdgeRoutesToTheRightSlot() {
         let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
         let leading = base.swipeActions(edge: .leading) { _ in [SwipeAction(title: "Flag") {}] }
