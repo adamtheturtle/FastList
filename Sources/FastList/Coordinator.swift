@@ -40,8 +40,6 @@ extension FastList {
         /// De-dupes ``onVisibleRowRangeChange`` callbacks.
         private var lastVisibleRowRange: ClosedRange<Int>?
         private var hoveredRow = -1
-        /// The highest row index included in the last prefetch callback.
-        private var lastPrefetchedThroughRow = -1
         /// Anchor for shift-click range selection.
         private var selectionAnchorRow: Int?
 

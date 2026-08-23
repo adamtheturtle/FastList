@@ -343,7 +343,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         }
     }
 
-
     /// Prefetches upcoming rows when the viewport nears rows that are not yet loaded.
     ///
     /// ```swift
@@ -368,21 +367,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// ```
     public func emptyState<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> Self {
         copy { $0.emptyStateContent = { AnyView(content()) } }
-    }
-
-    /// Prefetches upcoming rows when the viewport nears rows that are not yet loaded.
-    ///
-    /// ```swift
-    /// .onPrefetchRows(count: 20) { upcoming in warmCache(for: upcoming) }
-    /// ```
-    public func onPrefetchRows(
-        count: Int = 10,
-        perform: @escaping (_ upcoming: [Item]) -> Void
-    ) -> Self {
-        copy {
-            $0.prefetchRowCount = count
-            $0.onPrefetchRows = perform
-        }
     }
 
     /// Reports the inclusive range of row indices currently visible in the viewport.
@@ -667,20 +651,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             nativeReachEndGate = gate
             onReachEnd()
             prefetchNativeRowsIfNeeded(lastVisibleRow: lastVisibleRow)
-        }
-
-        private func prefetchNativeRowsIfNeeded(lastVisibleRow: Int) {
-            guard let onPrefetchRows = configuration.onPrefetchRows,
-                  items.indices.contains(lastVisibleRow) else { return }
-
-            let target = min(lastVisibleRow + configuration.prefetchRowCount, items.count - 1)
-            guard target > lastPrefetchedThroughRow else { return }
-
-            let start = lastPrefetchedThroughRow + 1
-            guard start <= target else { return }
-
-            lastPrefetchedThroughRow = target
-            onPrefetchRows(Array(items[start ... target]))
         }
 
         private func prefetchNativeRowsIfNeeded(lastVisibleRow: Int) {
