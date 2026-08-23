@@ -121,4 +121,6 @@ struct FastListConfiguration<Item: Identifiable> {
     var highlightsRowsOnHover = false
     /// Shown instead of the list when `items` is empty.
     var emptyStateContent: (() -> AnyView)?
+    var listHeaderContent: (() -> AnyView)?
+    var listFooterContent: (() -> AnyView)?
 }

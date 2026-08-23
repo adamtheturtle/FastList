@@ -34,6 +34,8 @@ extension FastList {
         /// so re-setting the same id later scrolls again.
         private var lastScrolledToID: Item.ID?
         private var hoveredRow = -1
+        /// Anchor for shift-click range selection.
+        private var selectionAnchorRow: Int?
 
         init(_ parent: FastList) {
             self.parent = parent
@@ -161,8 +163,23 @@ extension FastList {
 
         /// Backstop for the programmatic selection paths that bypass
         /// ``selectionShouldChange(in:)``, so a non-selectable list stays non-selectable.
-        public func tableView(_: NSTableView, shouldSelectRow _: Int) -> Bool {
-            parent.configuration.selectionMode != .none
+        /// Also implements shift-click range selection on macOS.
+        public func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+            guard parent.configuration.selectionMode != .none else { return false }
+            guard items.indices.contains(row) else { return false }
+
+            if NSEvent.modifierFlags.contains(.shift), let anchor = selectionAnchorRow, anchor >= 0 {
+                let range = min(anchor, row) ... max(anchor, row)
+                isApplyingSelection = true
+                tableView.selectRowIndexes(IndexSet(integersIn: range), byExtendingSelection: false)
+                isApplyingSelection = false
+                return false
+            }
+
+            if !NSEvent.modifierFlags.contains(.command) {
+                selectionAnchorRow = row
+            }
+            return true
         }
 
         /// Push the binding's selection into the table without echoing it back.
