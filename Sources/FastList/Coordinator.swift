@@ -135,6 +135,19 @@ extension FastList {
 
         // MARK: Selection
 
+        /// Refuses selection when the list was created without a binding, so AppKit never
+        /// draws a highlight, rather than drawing one and relying on a write-back that a
+        /// binding with nowhere to write can never undo.
+        public func selectionShouldChange(in _: NSTableView) -> Bool {
+            parent.configuration.selectionMode != .none
+        }
+
+        /// Backstop for the programmatic selection paths that bypass
+        /// ``selectionShouldChange(in:)``, so a non-selectable list stays non-selectable.
+        public func tableView(_: NSTableView, shouldSelectRow _: Int) -> Bool {
+            parent.configuration.selectionMode != .none
+        }
+
         /// Push the binding's selection into the table without echoing it back.
         func applySelection(_ ids: Set<Item.ID>) {
             guard let tableView else { return }

@@ -46,12 +46,14 @@ func reconciledFastListSelection<Item: Identifiable>(
 ///
 /// ## Selection
 ///
-/// Pass a set binding to drive multiple selection. `rows` is any
+/// Pass a binding to drive selection, or omit it for a non-selectable list. `rows` is any
 /// `[Item]` where `Item: Identifiable`; filter and sort it yourself before handing it over,
 /// because `FastList` renders exactly what you pass.
 ///
 /// ```swift
 /// FastList(rows, selection: $selectedIDs) { RowView($0) }  // Binding<Set<ID>>
+/// FastList(rows, selection: $selectedID)  { RowView($0) }  // Binding<ID?>
+/// FastList(rows) { RowView($0) }                           // no selection
 /// ```
 ///
 /// ## Hit-testing
@@ -110,6 +112,43 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         containedDuplicateIDs = deduplicatedItems.count != items.count
         _selection = selection
         rowContent = { AnyView(row($0)) }
+    }
+
+    /// Creates a list with a single-selection binding.
+    ///
+    /// The table is put into single-selection mode, so the user cannot shift- or
+    /// command-click a second row: a multi-row selection that this binding could not
+    /// represent is never formed in the first place. (Collapsing one after the fact with
+    /// `Set.first` would pick an arbitrary, hash-order-dependent row.)
+    public init(
+        _ items: [Item],
+        selection: Binding<Item.ID?>,
+        @ViewBuilder row: @escaping (Item) -> some View
+    ) {
+        self.init(
+            items,
+            selection: Binding(
+                get: { selection.wrappedValue.map { [$0] } ?? [] },
+                // The table is single-selection, so this set holds at most one id.
+                set: { selection.wrappedValue = $0.first }
+            ),
+            row: row
+        )
+        configuration.selectionMode = .single
+    }
+
+    /// Creates a non-selectable list.
+    ///
+    /// The table itself is made non-selectable, rather than merely dropping the selection
+    /// on the floor: a click leaves no highlight to begin with. A discarding binding would
+    /// let AppKit highlight the clicked row and, because a write that changes nothing
+    /// invalidates nothing, never get a chance to undo it.
+    public init(
+        _ items: [Item],
+        @ViewBuilder row: @escaping (Item) -> some View
+    ) {
+        self.init(items, selection: .constant([]), row: row)
+        configuration.selectionMode = .none
     }
 
     // MARK: Modifiers
@@ -305,7 +344,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         table.headerView = nil
         table.style = .inset
         table.usesAutomaticRowHeights = true
-        table.allowsMultipleSelection = true
+        configureSelection(for: table)
         table.allowsEmptySelection = true
         table.selectionHighlightStyle = .regular
         table.backgroundColor = .clear
@@ -355,6 +394,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         let coordinator = context.coordinator
         coordinator.parent = self
         guard let table = coordinator.tableView else { return }
+        configureSelection(for: table)
         coordinator.updateContextMenuRegistration(on: table)
         coordinator.updateDragRegistration(on: table)
 
@@ -373,6 +413,19 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         if coordinator.scrollToTargetIfNeeded(table) {
             DispatchQueue.main.async { configuration.onScrolledToID?() }
         }
+    }
+
+    /// Matches the table's AppKit selection behavior to the initializer the caller used.
+    ///
+    /// `.single` blocks shift/command-click, so a multi-row selection - which a
+    /// `Binding<Item.ID?>` cannot represent - is impossible to form in the first place.
+    /// `.none` additionally refuses selection outright via the coordinator's
+    /// `selectionShouldChange(in:)` / `tableView(_:shouldSelectRow:)`, so a click leaves no
+    /// highlight at all. (`NSTableView` has no `isSelectable`; the delegate is the supported
+    /// way to make a table non-selectable, and unlike `allowsEmptySelection` juggling it also
+    /// covers Select All and keyboard navigation.)
+    func configureSelection(for table: NSTableView) {
+        table.allowsMultipleSelection = configuration.selectionMode == .multiple
     }
 
     #endif
@@ -497,6 +550,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         }
 
         private func handleNativeRowTap(_ item: Item) {
+            guard configuration.selectionMode != .none else { return }
             #if os(iOS)
             if UIDevice.current.userInterfaceIdiom == .pad {
                 if selection.contains(item.id) {
@@ -597,6 +651,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             let base = rowContent(item)
                 .contentShape(.rect)
                 .onTapGesture {
+                    guard configuration.selectionMode != .none else { return }
                     selection = [item.id]
                 }
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
