@@ -185,7 +185,7 @@ extension FastList {
                   let window = tableView.window else { return }
 
             let point = tableView.convert(window.mouseLocationOutsideOfEventStream, from: nil)
-            let row = tableView.bounds.contains(point) ? tableView.row(at: point) : -1
+            let row = tableView.visibleRect.contains(point) ? tableView.row(at: point) : -1
             updateHoveredRow(row, in: tableView)
         }
 
