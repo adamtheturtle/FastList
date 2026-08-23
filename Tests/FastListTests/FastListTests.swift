@@ -414,6 +414,23 @@ private final class SnapshotReloadTableView: NSTableView {
         #expect(table.partialReloadRowIndexes.isEmpty)
     }
 
+    @Test func selectionAnchorRemapsWhenRowsReorder() {
+        let rows = [Row(id: 1, name: "a"), Row(id: 2, name: "b"), Row(id: 3, name: "c")]
+        let coordinator = makeCoordinator(rows)
+        coordinator.reloadIfNeeded(rows, force: true)
+        coordinator.testingSetSelectionAnchorRow(0) // id 1
+        #expect(coordinator.testingSelectionAnchorRow == 0)
+
+        coordinator.reloadIfNeeded(
+            [Row(id: 3, name: "c"), Row(id: 1, name: "a"), Row(id: 2, name: "b")],
+            force: false
+        )
+        #expect(coordinator.testingSelectionAnchorRow == 1)
+
+        coordinator.reloadIfNeeded([Row(id: 2, name: "b"), Row(id: 3, name: "c")], force: false)
+        #expect(coordinator.testingSelectionAnchorRow == nil)
+    }
+
     @Test func contextMenuActionDoesNotRetargetWhenEntriesReorder() {
         var performed: [String] = []
         var list = FastList([Row(id: 1, name: "row")], selection: .constant([])) { Text($0.name) }

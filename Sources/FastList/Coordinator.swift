@@ -48,6 +48,18 @@ extension FastList {
             parent.configuration.selectionMode == .multiple
         }
 
+        /// Visible for tests that remapping survives `reloadIfNeeded`.
+        @_spi(FastListTesting)
+        public var testingSelectionAnchorRow: Int? {
+            selectionAnchorRow
+        }
+
+        /// Sets the shift-selection anchor for tests without synthesizing modifier flags.
+        @_spi(FastListTesting)
+        public func testingSetSelectionAnchorRow(_ row: Int?) {
+            selectionAnchorRow = row
+        }
+
         init(_ parent: FastList) {
             self.parent = parent
         }
@@ -72,6 +84,7 @@ extension FastList {
             let newItems = deduplicatedFastListItems(newItems)
             let nextRowContentID = parent.configuration.rowContentID
             let nextAccessibilityIncludesRowPosition = parent.configuration.accessibilityIncludesRowPosition
+            let anchorID = selectionAnchorRow.flatMap { items.indices.contains($0) ? items[$0].id : nil }
             let changed = force
                 || parent.containedDuplicateIDs
                 || newItems.map(\.id) != items.map(\.id)
@@ -88,6 +101,7 @@ extension FastList {
             if hoveredRow >= items.count {
                 hoveredRow = -1
             }
+            selectionAnchorRow = anchorID.flatMap { indexByID[$0] }
             let reconciledSelection = reconciledFastListSelection(parent.selection, items: newItems)
             if reconciledSelection != parent.selection { parent.selection = reconciledSelection }
             if newItems.isEmpty { reportTopRow(nil) }
