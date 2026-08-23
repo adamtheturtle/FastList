@@ -862,4 +862,23 @@ private extension NSEvent {
     }
 }
 
+@MainActor
+@Suite struct FastListChromeTests {
+    @Test func clearingHeaderCollapsesReservedHeight() {
+        let container = FastListContainerView(frame: NSRect(x: 0, y: 0, width: 320, height: 480))
+        container.updateChrome(
+            header: AnyView(Text("Header").frame(minHeight: 44)),
+            footer: nil
+        )
+        container.layoutSubtreeIfNeeded()
+        let heightWithHeader = container.headerHostingView.fittingSize.height
+        #expect(heightWithHeader > 1)
+
+        container.updateChrome(header: nil, footer: nil)
+        container.layoutSubtreeIfNeeded()
+        #expect(container.headerHostingView.isHidden)
+        #expect(container.headerHostingView.fittingSize.height < heightWithHeader)
+    }
+}
+
 #endif
