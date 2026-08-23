@@ -19,6 +19,8 @@ public final class FastListContainerView: NSView {
         headerHostingView.isHidden = true
         footerHostingView.isHidden = true
         emptyHostingView.isHidden = true
+        // Edge-pinned empty state must not also publish intrinsic sizing constraints.
+        emptyHostingView.sizingOptions = []
         NSLayoutConstraint.activate([
             headerHostingView.leadingAnchor.constraint(equalTo: leadingAnchor),
             headerHostingView.trailingAnchor.constraint(equalTo: trailingAnchor),
