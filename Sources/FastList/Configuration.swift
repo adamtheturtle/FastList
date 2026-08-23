@@ -171,4 +171,3 @@ struct FastListConfiguration<Item: Identifiable> {
     /// When `true`, the native list enters an editing mode (reorder/delete chrome on iOS).
     var isEditing = false
 }
-

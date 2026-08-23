@@ -363,7 +363,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.onMoveRows = action }
     }
 
-
     /// Toggles native list editing mode.
     ///
     /// On iOS / iPadOS this sets `EditMode.active` so swipe-to-delete and `onMove` reorder
