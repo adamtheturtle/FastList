@@ -106,8 +106,11 @@ final class HostingCellView: NSTableCellView {
         let height = hosting.fittingSize.height
         guard abs(height - lastReportedHeight) > 0.5 else { return }
         lastReportedHeight = height
+        let row = rowIndex
+        let tableView = enclosingTableView
         let notify = onHeightChange
         RunLoop.main.perform {
+            tableView?.noteHeightOfRows(withIndexesChanged: IndexSet(integer: row))
             notify?()
         }
     }
