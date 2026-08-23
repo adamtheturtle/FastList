@@ -575,7 +575,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                                                 indexedItem.offset: NativeVisibleRowBounds(
                                                     minY: frame.minY,
                                                     maxY: frame.maxY
-                                                ),
+                                                )
                                             ]
                                         )
                                 }
