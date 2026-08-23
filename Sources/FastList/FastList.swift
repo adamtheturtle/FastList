@@ -90,6 +90,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         @State private var lastNativeTopRowID: Item.ID?
         /// Honors ``scrollToRow(id:then:)`` once until the target is cleared, matching macOS.
         @State private var lastHonoredScrollToID: Item.ID?
+        @State private var lastNativeVisibleRange: ClosedRange<Int>?
     #endif
 
     // MARK: Initializers
@@ -326,6 +327,14 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.emptyStateContent = { AnyView(content()) } }
     }
 
+    /// Reports the inclusive range of row indices currently visible in the viewport.
+    ///
+    /// Indices are zero-based positions in the `items` array you passed to ``FastList``,
+    /// updated whenever the visible rect changes.
+    public func onVisibleRowRangeChange(_ action: @escaping (ClosedRange<Int>) -> Void) -> Self {
+        copy { $0.onVisibleRowRangeChange = action }
+    }
+
     private func copy(_ mutate: (inout FastListConfiguration<Item>) -> Void) -> Self {
         var copy = self
         mutate(&copy.configuration)
@@ -511,7 +520,10 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                 // rounded-rectangle highlight instead - no bleed, no clipping, no system emphasis.
                 .listStyle(.plain)
                 .coordinateSpace(name: "fastListNative")
-                .onPreferenceChange(NativeVisibleRowMinYKey.self, perform: reportNativeTopRow(from:))
+                .onPreferenceChange(NativeVisibleRowMinYKey.self) { minYs in
+                    reportNativeTopRow(from: minYs)
+                    reportNativeVisibleRange(from: minYs)
+                }
                 .onAppear {
                     reconcileSelection()
                     honorNativeScrollToIfNeeded(proxy: proxy)
@@ -592,6 +604,22 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             guard id != lastNativeTopRowID else { return }
             lastNativeTopRowID = id
             configuration.onTopRowChange?(id)
+        }
+
+        private func reportNativeVisibleRange(from minYs: [Int: CGFloat]) {
+            guard let onVisibleRowRangeChange = configuration.onVisibleRowRangeChange else { return }
+            guard !items.isEmpty else { return }
+
+            let visible = minYs.keys.filter { index in
+                guard let minY = minYs[index] else { return false }
+                return minY > -1
+            }.sorted()
+            guard let lower = visible.first, let upper = visible.last else { return }
+
+            let range = lower ... upper
+            guard range != lastNativeVisibleRange else { return }
+            lastNativeVisibleRange = range
+            onVisibleRowRangeChange(range)
         }
 
         private func honorNativeScrollToIfNeeded(proxy: ScrollViewProxy) {
