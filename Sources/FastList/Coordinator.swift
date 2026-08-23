@@ -98,6 +98,12 @@ extension FastList {
         public func tableView(_ tableView: NSTableView, viewFor _: NSTableColumn?, row: Int) -> NSView? {
             let cell = tableView.makeView(withIdentifier: .fastListCell, owner: self) as? HostingCellView
                 ?? HostingCellView(identifier: .fastListCell)
+            cell.rowIndex = row
+            cell.enclosingTableView = tableView
+            cell.onHeightChange = { [weak cell, weak tableView] in
+                guard let cell, let tableView else { return }
+                tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: cell.rowIndex))
+            }
             cell.host(parent.rowContent(items[row]))
             return cell
         }
