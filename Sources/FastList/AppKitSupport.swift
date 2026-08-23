@@ -34,7 +34,7 @@ final class KeyHandlingTableView: NSTableView {
         addTrackingArea(
             NSTrackingArea(
                 rect: bounds,
-                options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect],
+                options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
                 owner: self,
                 userInfo: nil
             )
