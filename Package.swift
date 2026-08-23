@@ -13,6 +13,9 @@ let package = Package(
     products: [
         .library(name: "FastList", targets: ["FastList"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/adamtheturtle/MacPullToRefresh.git", from: "0.3.1")
+    ],
     targets: [
         // SwiftPM's normal build treats the DocC catalog as an unhandled source. Exclude it
         // there, but expose it to the documentation plugin in the Pages build. Declaring it
@@ -22,7 +25,13 @@ let package = Package(
             exclude: buildDocumentation ? [] : ["FastList.docc"],
             resources: buildDocumentation ? [.copy("FastList.docc")] : []
         ),
-        .executableTarget(name: "FastListDemo", dependencies: ["FastList"]),
+        .executableTarget(
+            name: "FastListDemo",
+            dependencies: [
+                "FastList",
+                .product(name: "MacPullToRefresh", package: "MacPullToRefresh")
+            ]
+        ),
         .testTarget(name: "FastListTests", dependencies: ["FastList"])
     ]
 )
