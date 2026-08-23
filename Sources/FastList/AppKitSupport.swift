@@ -48,6 +48,10 @@ final class KeyHandlingTableView: NSTableView {
 /// content's intrinsic height so `usesAutomaticRowHeights` lays the row out correctly.
 final class HostingCellView: NSTableCellView {
     private var hosting: NSHostingView<AnyView>?
+    var rowIndex = 0
+    weak var enclosingTableView: NSTableView?
+    var onHeightChange: (() -> Void)?
+    private var lastReportedHeight: CGFloat = 0
 
     init(identifier: NSUserInterfaceItemIdentifier) {
         super.init(frame: .zero)
@@ -59,9 +63,19 @@ final class HostingCellView: NSTableCellView {
         nil
     }
 
+    override func layout() {
+        super.layout()
+        guard let hosting else { return }
+        let height = hosting.fittingSize.height
+        guard abs(height - lastReportedHeight) > 0.5 else { return }
+        lastReportedHeight = height
+        onHeightChange?()
+    }
+
     func host(_ view: AnyView) {
         if let hosting {
             hosting.rootView = view
+            needsLayout = true
             return
         }
         let hostingView = NSHostingView(rootView: view)
