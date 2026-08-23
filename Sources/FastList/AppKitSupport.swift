@@ -115,6 +115,7 @@ final class HostingCellView: NSTableCellView {
     func host(_ view: AnyView) {
         if let hosting {
             hosting.rootView = view
+            lastReportedHeight = 0
             needsLayout = true
             return
         }
