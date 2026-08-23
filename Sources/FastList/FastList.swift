@@ -743,14 +743,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
                 .listRowBackground(selectionBackground(isSelected: isSelected))
             #else
-            let base = positioned
-                .contentShape(.rect)
-                .onTapGesture(count: 2) {
-                    configuration.onDoubleClick?(item)
-                }
-                .onTapGesture(count: 1) {
-                    handleNativeRowTap(item)
-                }
+            let base = rowWithTapGestures(for: item, positioned: positioned, isSelected: isSelected)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
                 .listRowBackground(selectionBackground(isSelected: isSelected))
                 .swipeActions(edge: .leading) { swipeButtons(leading) }
@@ -765,6 +758,26 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                 } else {
                     base.contextMenu { contextButtons(menu) }
                 }
+            }
+        }
+
+        @ViewBuilder
+        private func rowWithTapGestures(for item: Item, positioned: AnyView, isSelected _: Bool) -> some View {
+            if let onDoubleClick = configuration.onDoubleClick {
+                positioned
+                    .contentShape(.rect)
+                    .onTapGesture(count: 2) {
+                        onDoubleClick(item)
+                    }
+                    .onTapGesture(count: 1) {
+                        handleNativeRowTap(item)
+                    }
+            } else {
+                positioned
+                    .contentShape(.rect)
+                    .onTapGesture {
+                        handleNativeRowTap(item)
+                    }
             }
         }
 
