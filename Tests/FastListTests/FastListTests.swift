@@ -148,6 +148,27 @@ private final class SnapshotReloadTableView: NSTableView {
         #expect(table.reloadCount == 2)
     }
 
+    @Test func selectAllUpdatesTheSelectionBinding() {
+        var sink: Set<Int> = []
+        let binding = Binding<Set<Int>>(get: { sink }, set: { sink = $0 })
+        let list = FastList(
+            [Row(id: 1, name: "a"), Row(id: 2, name: "b"), Row(id: 3, name: "c")],
+            selection: binding
+        ) { Text($0.name) }
+        let coordinator = list.makeCoordinator()
+        let table = NSTableView()
+        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
+        table.dataSource = coordinator
+        table.delegate = coordinator
+        table.allowsMultipleSelection = true
+        coordinator.tableView = table
+        coordinator.reloadIfNeeded(list.items, force: true)
+
+        #expect(coordinator.handleSelectAll())
+        #expect(sink == [1, 2, 3])
+        #expect(table.selectedRowIndexes == IndexSet([0, 1, 2]))
+    }
+
     @Test func appliesSelectionToARealTableViewWithoutEchoing() {
         var sink: Set<Int> = []
         let binding = Binding<Set<Int>>(get: { sink }, set: { sink = $0 })

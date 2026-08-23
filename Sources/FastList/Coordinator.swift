@@ -252,7 +252,12 @@ extension FastList {
         @discardableResult
         func handleSelectAll() -> Bool {
             guard let tableView, tableView.allowsMultipleSelection, !items.isEmpty else { return false }
-            applySelection(Set(items.map(\.id)))
+            let allIDs = Set(items.map(\.id))
+            applySelection(allIDs)
+            if parent.selection != allIDs {
+                parent.selection = allIDs
+                announceSelectionChange(count: allIDs.count)
+            }
             return true
         }
 
