@@ -70,7 +70,10 @@ private struct ContentView: View {
                 [
                     .button(title: contact.isFlagged ? "Unflag" : "Flag") { toggleFlag(contact) },
                     .separator,
-                    .button(title: "Delete \(selection.count)", isEnabled: !selection.isEmpty) { deleteSelected(selection) }
+                    .button(
+                        title: "Delete \(selection.count)",
+                        isEnabled: !selection.isEmpty
+                    ) { deleteSelected(selection) }
                 ]
             }
             #if os(macOS)
