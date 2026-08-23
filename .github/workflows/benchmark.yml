@@ -32,4 +32,3 @@ jobs:
           -scheme FastListBenchmark
           -destination 'platform=macOS'
           -derivedDataPath "$RUNNER_TEMP/FastList-Benchmark"
-          CODE_SIGNING_ALLOWED=NO
