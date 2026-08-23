@@ -13,6 +13,33 @@ A drop-in, `NSTableView`-backed replacement for SwiftUI `List` on macOS.
 
 Add the `FastList` product to your target dependencies.
 
+## Quick start
+
+```swift
+import FastList
+import SwiftUI
+
+struct ContactsView: View {
+    @State private var contacts: [Contact] = /* your rows */
+    @State private var selection: Set<Contact.ID> = []
+
+    var body: some View {
+        FastList(contacts, selection: $selection) { contact in
+            Text(contact.name)
+                .allowsHitTesting(false)
+        }
+        .onDoubleClick { open($0) }
+        .onReturnKey { open($0) }
+        .onReachEnd(threshold: 10) { loadNextPage() }
+    }
+}
+```
+
+On macOS, make non-interactive row chrome hit-transparent so clicks reach the
+`NSTableView`. Interactive controls inside a row still receive their own events.
+See the [documentation](https://swiftpackageindex.com/adamtheturtle/FastList/documentation/fastlist)
+for swipe actions, context menus, scroll restore, and the iOS backend.
+
 ## Scope
 
 `FastList` owns native list mechanics: recycled macOS rows, selection, activation,
