@@ -288,7 +288,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.highlightsRowsOnHover = enabled }
     }
 
-
     /// Draws alternating row backgrounds on every second row.
     public func alternatingRowBackgrounds(_ enabled: Bool = true) -> Self {
         copy { $0.alternatingRowBackgrounds = enabled }
