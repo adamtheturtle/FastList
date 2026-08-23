@@ -288,6 +288,12 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.highlightsRowsOnHover = enabled }
     }
 
+
+    /// Draws alternating row backgrounds on every second row.
+    public func alternatingRowBackgrounds(_ enabled: Bool = true) -> Self {
+        copy { $0.alternatingRowBackgrounds = enabled }
+    }
+
     /// Pins a header view above the list rows.
     public func listHeader<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> Self {
         copy { $0.listHeaderContent = { AnyView(content()) } }
@@ -396,6 +402,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         table.style = .inset
         table.usesAutomaticRowHeights = true
         configureSelection(for: table)
+        table.usesAlternatingRowBackgroundColors = configuration.alternatingRowBackgrounds
         table.allowsEmptySelection = true
         table.selectionHighlightStyle = .regular
         table.backgroundColor = .clear
@@ -451,6 +458,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         coordinator.parent = self
         guard let table = coordinator.tableView else { return }
         configureSelection(for: table)
+        table.usesAlternatingRowBackgroundColors = configuration.alternatingRowBackgrounds
         coordinator.updateContextMenuRegistration(on: table)
         coordinator.updateDragRegistration(on: table)
 
@@ -766,6 +774,17 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         /// leading/trailing edges (so it can't bleed behind the split-view sidebar) and
         /// inside the row (so it can't clip the row's content).
         @ViewBuilder
+        private func rowBackground(isSelected: Bool, index: Int) -> some View {
+            if isSelected {
+                selectionBackground(isSelected: true)
+            } else if configuration.alternatingRowBackgrounds, index.isMultiple(of: 2) {
+                Color.primary.opacity(0.04)
+            } else {
+                Color.clear
+            }
+        }
+
+        @ViewBuilder
         private func selectionBackground(isSelected: Bool) -> some View {
             if isSelected {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -801,11 +820,11 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                     selection = [item.id]
                 }
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
-                .listRowBackground(selectionBackground(isSelected: isSelected))
+                .listRowBackground(rowBackground(isSelected: isSelected, index: index))
             #else
             let base = rowWithTapGestures(for: item, positioned: positioned, isSelected: isSelected)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
-                .listRowBackground(selectionBackground(isSelected: isSelected))
+                .listRowBackground(rowBackground(isSelected: isSelected, index: index))
                 .swipeActions(edge: .leading) { swipeButtons(leading) }
                 .swipeActions(edge: .trailing) { swipeButtons(trailing) }
             #endif

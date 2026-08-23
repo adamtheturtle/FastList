@@ -132,4 +132,5 @@ struct FastListConfiguration<Item: Identifiable> {
     var prefetchRowCount = 10
     /// Reports the inclusive row-index range currently intersecting the viewport.
     var onVisibleRowRangeChange: ((ClosedRange<Int>) -> Void)?
+    var alternatingRowBackgrounds = false
 }
