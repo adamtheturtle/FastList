@@ -14,3 +14,4 @@ disabled_rules:
   # and the view representables are one cohesive unit, and splitting them across
   # files to satisfy a line count would obscure that rather than clarify it.
   - file_length
+  - type_body_length

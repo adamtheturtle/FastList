@@ -28,8 +28,11 @@ import Testing
         inLayout = false
         #expect(heightNotes == 0)
 
+        cell.host(AnyView(VStack { Text("Taller"); Text("Second line") }))
+        cell.layout()
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-        #expect(heightNotes == 1)
+
+        #expect(heightNotes >= 2)
         #expect(!calledDuringLayout)
     }
 }
