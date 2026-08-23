@@ -60,13 +60,12 @@ private struct ContentView: View {
         }
     }
 
-    @ViewBuilder
     private var listWithPaging: some View {
-        if query.isEmpty {
-            configuredList.onReachEnd(threshold: 20) { loadNextPage() }
-        } else {
-            configuredList
-        }
+        configuredList
+            .onReachEnd(threshold: 20) {
+                guard query.isEmpty else { return }
+                loadNextPage()
+            }
     }
 
     private var configuredList: FastList<Contact> {
