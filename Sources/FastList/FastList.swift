@@ -737,7 +737,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             // Double-tap opens via ``onDoubleClick`` (pointer / trackpad on iPad); single tap
             // still selects. Hardware Return is handled on the list itself.
             #if os(tvOS)
-            let base = rowContent(item)
+            let base = positioned
                 .contentShape(.rect)
                 .onTapGesture {
                     guard configuration.selectionMode != .none else { return }
