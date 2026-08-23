@@ -659,12 +659,15 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
 
         @discardableResult
         private func handleNativeReturnKey() -> KeyPress.Result {
-            guard let onReturnKey = configuration.onReturnKey,
-                  let selectedID = selection.first,
-                  let item = items.first(where: { $0.id == selectedID }) else {
+            guard let onReturnKey = configuration.onReturnKey else { return .ignored }
+            let selectedIndices = items.enumerated().compactMap { index, item in
+                selection.contains(item.id) ? index : nil
+            }
+            guard let lowestIndex = selectedIndices.min(),
+                  items.indices.contains(lowestIndex) else {
                 return .ignored
             }
-            onReturnKey(item)
+            onReturnKey(items[lowestIndex])
             return .handled
         }
 
