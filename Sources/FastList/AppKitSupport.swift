@@ -21,6 +21,8 @@ final class KeyHandlingTableView: NSTableView {
     var onReturn: (() -> Bool)?
     /// Reports the row under the mouse, or `-1` when the pointer left the table.
     var onHoveredRowChanged: ((Int) -> Void)?
+    /// Selects every row when the user presses Command-A. Return whether the event was consumed.
+    var onSelectAll: (() -> Bool)?
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -51,6 +53,11 @@ final class KeyHandlingTableView: NSTableView {
     }
 
     override func keyDown(with event: NSEvent) {
+        if event.modifierFlags.contains(.command),
+           event.charactersIgnoringModifiers?.lowercased() == "a",
+           onSelectAll?() == true {
+            return
+        }
         // 36 = Return, 76 = keypad Enter.
         let isReturn = event.keyCode == 36 || event.keyCode == 76
         // Fall through to the responder chain whenever the handler declines the event, so a
@@ -78,6 +85,10 @@ final class KeyHandlingTableView: NSTableView {
 /// content's intrinsic height so `usesAutomaticRowHeights` lays the row out correctly.
 final class HostingCellView: NSTableCellView {
     private var hosting: NSHostingView<AnyView>?
+    var rowIndex = 0
+    weak var enclosingTableView: NSTableView?
+    var onHeightChange: (() -> Void)?
+    private var lastReportedHeight: CGFloat = 0
 
     init(identifier: NSUserInterfaceItemIdentifier) {
         super.init(frame: .zero)
@@ -89,9 +100,19 @@ final class HostingCellView: NSTableCellView {
         nil
     }
 
+    override func layout() {
+        super.layout()
+        guard let hosting else { return }
+        let height = hosting.fittingSize.height
+        guard abs(height - lastReportedHeight) > 0.5 else { return }
+        lastReportedHeight = height
+        onHeightChange?()
+    }
+
     func host(_ view: AnyView) {
         if let hosting {
             hosting.rootView = view
+            needsLayout = true
             return
         }
         let hostingView = NSHostingView(rootView: view)

@@ -210,13 +210,14 @@ private final class SnapshotReloadTableView: NSTableView {
 
     @Test func scrollObservationIsRemovedDuringTeardown() {
         let coordinator = makeCoordinator([])
-        let scrollView = NSScrollView()
+        let container = FastListContainerView(frame: .zero)
+        let scrollView = container.scrollView
         coordinator.installScrollObservers(for: scrollView)
 
         #expect(coordinator.observedScrollView === scrollView)
         #expect(scrollView.contentView.postsBoundsChangedNotifications)
 
-        FastList<Row>.dismantleNSView(scrollView, coordinator: coordinator)
+        FastList<Row>.dismantleNSView(container, coordinator: coordinator)
 
         #expect(coordinator.observedScrollView == nil)
         #expect(!scrollView.contentView.postsBoundsChangedNotifications)
@@ -257,7 +258,7 @@ private final class SnapshotReloadTableView: NSTableView {
         coordinator.updateContextMenuRegistration(on: table)
         #expect(table.menu == nil)
 
-        coordinator.parent = base.rowContextMenu { _ in [.button(title: "Open") {}] }
+        coordinator.parent = base.rowContextMenu { _, _ in [.button(title: "Open") {}] }
         coordinator.updateContextMenuRegistration(on: table)
         #expect(table.menu != nil)
         #expect(table.menu?.delegate === coordinator)
@@ -290,7 +291,7 @@ private final class SnapshotReloadTableView: NSTableView {
     @Test func contextMenuActionsResolveAgainstTheCurrentSnapshot() {
         var opened: [String] = []
         var list = FastList([Row(id: 1, name: "original")], selection: .constant([])) { Text($0.name) }
-            .rowContextMenu { row in [.button(title: "Open") { opened.append(row.name) }] }
+            .rowContextMenu { row, _ in [.button(title: "Open") { opened.append(row.name) }] }
         let coordinator = list.makeCoordinator()
         coordinator.reloadIfNeeded(list.items, force: true)
 
@@ -302,7 +303,7 @@ private final class SnapshotReloadTableView: NSTableView {
         #expect(opened == ["original"])
 
         list = FastList([Row(id: 1, name: "replacement")], selection: .constant([])) { Text($0.name) }
-            .rowContextMenu { row in [.button(title: "Open") { opened.append(row.name) }] }
+            .rowContextMenu { row, _ in [.button(title: "Open") { opened.append(row.name) }] }
         coordinator.parent = list
         coordinator.reloadIfNeeded(list.items, force: true)
         coordinator.performMenuAction(for: 1, entryIndex: 0)
@@ -312,7 +313,7 @@ private final class SnapshotReloadTableView: NSTableView {
     @Test func contextMenuActionDoesNotRetargetWhenEntriesReorder() {
         var performed: [String] = []
         var list = FastList([Row(id: 1, name: "row")], selection: .constant([])) { Text($0.name) }
-            .rowContextMenu { _ in
+            .rowContextMenu { _, _ in
                 [
                     .button(title: "Open") { performed.append("open") },
                     .button(title: "Delete") { performed.append("delete") }
@@ -322,7 +323,7 @@ private final class SnapshotReloadTableView: NSTableView {
         coordinator.reloadIfNeeded(list.items, force: true)
 
         list = FastList(list.items, selection: .constant([])) { Text($0.name) }
-            .rowContextMenu { _ in
+            .rowContextMenu { _, _ in
                 [
                     .button(title: "Delete") { performed.append("delete") },
                     .button(title: "Open") { performed.append("open") }
@@ -615,7 +616,7 @@ private extension NSEvent {
             .onDoubleClick { _ in }
             .onReturnKey { _ in }
             .swipeActions(edge: .trailing) { _ in [] }
-            .rowContextMenu { _ in [] }
+            .rowContextMenu { _, _ in [] }
             .rowContentID("content")
 
         #expect(configured.configuration.onDoubleClick != nil)
@@ -646,7 +647,85 @@ private extension NSEvent {
         #expect(leading.configuration.leadingSwipe != nil)
         #expect(leading.configuration.trailingSwipe == nil)
     }
+}
 
+@MainActor
+@Suite struct FastListSelectionModeTests {
+    /// What a configured table's selection behavior actually comes out as: the AppKit flag plus
+    /// the two delegate answers that decide whether a selection can happen at all.
+    private struct TableSelectionState {
+        var allowsMultipleSelection: Bool
+        var allowsSelection: Bool
+        var allowsRowSelection: Bool
+    }
+
+    /// Regression test for the single-selection binding collapsing a multi-row selection to an
+    /// arbitrary (hash-ordered) row: the table must be single-selection so the multi-row
+    /// selection can never form.
+    @Test func singleSelectionBindingUsesSingleSelectionMode() {
+        var selected: Int?
+        let binding = Binding<Int?>(get: { selected }, set: { selected = $0 })
+        let list = FastList([Row(id: 7, name: "a")], selection: binding) { Text($0.name) }
+
+        #expect(list.configuration.selectionMode == .single)
+        #expect(!tableSelectionState(for: list).allowsMultipleSelection)
+    }
+
+    /// Regression test for the "non-selectable" list being selectable: the table must refuse
+    /// selection outright rather than discarding the write into a `.constant` binding, which
+    /// leaves AppKit's highlight on screen forever.
+    @Test func nonSelectableListRefusesSelection() {
+        let list = FastList([Row(id: 1, name: "a"), Row(id: 2, name: "b")]) { Text($0.name) }
+        #expect(list.configuration.selectionMode == .none)
+
+        let state = tableSelectionState(for: list)
+        #expect(!state.allowsMultipleSelection)
+        #expect(!state.allowsSelection)
+        #expect(!state.allowsRowSelection)
+    }
+
+    @Test func multipleSelectionListStaysMultiSelect() {
+        let list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+        #expect(list.configuration.selectionMode == .multiple)
+
+        let state = tableSelectionState(for: list)
+        #expect(state.allowsMultipleSelection)
+        #expect(state.allowsSelection)
+        #expect(state.allowsRowSelection)
+    }
+
+    /// Builds the real `NSTableView` the representable would build and reports what its
+    /// selection behavior actually ends up as, delegate included.
+    private func tableSelectionState(for list: FastList<Row>) -> TableSelectionState {
+        let coordinator = list.makeCoordinator()
+        let table = NSTableView()
+        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
+        table.dataSource = coordinator
+        table.delegate = coordinator
+        coordinator.tableView = table
+        coordinator.reloadIfNeeded(list.items, force: true)
+        // The same call `makeNSView` / `updateNSView` make; a real `Context` can't be built in
+        // a unit test, so drive the table configuration directly.
+        list.configureSelection(for: table)
+
+        return TableSelectionState(
+            allowsMultipleSelection: table.allowsMultipleSelection,
+            allowsSelection: coordinator.selectionShouldChange(in: table),
+            allowsRowSelection: coordinator.tableView(table, shouldSelectRow: 0)
+        )
+    }
+
+    @Test func singleSelectionBindingBridgesToASet() {
+        var selected: Int?
+        let binding = Binding<Int?>(get: { selected }, set: { selected = $0 })
+        let list = FastList([Row(id: 7, name: "a")], selection: binding) { Text($0.name) }
+
+        list.$selection.wrappedValue = [7]
+        #expect(selected == 7)
+
+        list.$selection.wrappedValue = []
+        #expect(selected == nil)
+    }
 }
 
 #endif
