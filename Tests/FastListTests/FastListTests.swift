@@ -19,7 +19,6 @@ private final class CountingTableView: NSTableView {
     }
 }
 
-
 private final class PartialReloadTableView: NSTableView {
     var partialReloadRowIndexes: [IndexSet] = []
 
@@ -386,7 +385,6 @@ private final class SnapshotReloadTableView: NSTableView {
         coordinator.performMenuAction(for: 1, entryIndex: 0)
         #expect(opened == ["original", "replacement"])
     }
-
 
     @Test func hoverIndexClampsWhenTheRowSetShrinks() {
         let table = PartialReloadTableView()
@@ -849,7 +847,6 @@ private extension NSEvent {
         #expect(selected == nil)
     }
 }
-
 
 @MainActor
 @Suite struct FastListHoverTrackingTests {
