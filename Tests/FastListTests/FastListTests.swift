@@ -223,6 +223,33 @@ private final class SnapshotReloadTableView: NSTableView {
         #expect(!scrollView.contentView.postsBoundsChangedNotifications)
     }
 
+    @Test func resetsPrefetchWatermarkWhenTheSnapshotChanges() {
+        var prefetched: [[Row]] = []
+        var list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+            .onPrefetchRows(count: 1) { prefetched.append($0) }
+        let coordinator = list.makeCoordinator()
+        let table = SnapshotReloadTableView()
+        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
+        table.dataSource = coordinator
+        table.delegate = coordinator
+        coordinator.tableView = table
+        table.onReload = {
+            coordinator.scrollPositionChanged()
+        }
+        coordinator.reloadIfNeeded(
+            (1 ... 5).map { Row(id: $0, name: "\($0)") },
+            force: true
+        )
+        prefetched.removeAll()
+
+        list = FastList((1 ... 3).map { Row(id: $0, name: "\($0)") }, selection: .constant([])) { Text($0.name) }
+            .onPrefetchRows(count: 1) { prefetched.append($0) }
+        coordinator.parent = list
+        coordinator.reloadIfNeeded(list.items, force: false)
+
+        #expect(!prefetched.isEmpty)
+    }
+
     @Test func suppressesTopRowCallbacksWhileReplacingTheNativeSnapshot() {
         var reported: [Int?] = []
         var callbacksDuringReload = -1

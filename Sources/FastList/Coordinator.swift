@@ -33,6 +33,8 @@ extension FastList {
         /// scrolls once rather than on every update. Cleared when the target goes back to `nil`,
         /// so re-setting the same id later scrolls again.
         private var lastScrolledToID: Item.ID?
+        /// The highest row index included in the last prefetch callback.
+        private var lastPrefetchedThroughRow = -1
         private var hoveredRow = -1
         /// Anchor for shift-click range selection.
         private var selectionAnchorRow: Int?
@@ -73,6 +75,7 @@ extension FastList {
             let reconciledSelection = reconciledFastListSelection(parent.selection, items: newItems)
             if reconciledSelection != parent.selection { parent.selection = reconciledSelection }
             if newItems.isEmpty { reportTopRow(nil) }
+            if changed { lastPrefetchedThroughRow = -1 }
             guard changed else { return }
 
             isApplyingSnapshot = true
@@ -307,6 +310,22 @@ extension FastList {
             } else {
                 reachEndGate.reset()
             }
+
+            prefetchIfNeeded(lastVisibleRow: NSMaxRange(visible) - 1)
+        }
+
+        private func prefetchIfNeeded(lastVisibleRow: Int) {
+            guard let onPrefetchRows = parent.configuration.onPrefetchRows,
+                  items.indices.contains(lastVisibleRow) else { return }
+
+            let target = min(lastVisibleRow + parent.configuration.prefetchRowCount, items.count - 1)
+            guard target > lastPrefetchedThroughRow else { return }
+
+            let start = lastPrefetchedThroughRow + 1
+            guard start <= target else { return }
+
+            lastPrefetchedThroughRow = target
+            onPrefetchRows(Array(items[start ... target]))
         }
 
         /// Reports a changed top-row identity. Keeping the last non-empty ID lets a later
