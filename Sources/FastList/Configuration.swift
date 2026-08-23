@@ -116,6 +116,10 @@ struct FastListConfiguration<Item: Identifiable> {
         var pasteboardItem: ((Item) -> NSPasteboardItem?)?
         var onDragSessionBegan: ((NSDraggingSession) -> Void)?
     #endif
+    #if os(iOS)
+        /// Drag payload for the native SwiftUI backend. `nil` disables drag for that row.
+        var itemProvider: ((Item) -> NSItemProvider?)?
+    #endif
     var onDragSessionEnded: (() -> Void)?
     var onTopRowChange: ((Item.ID?) -> Void)?
     /// Fired when the last visible row comes within `reachEndThreshold` rows of the end, the

@@ -913,3 +913,27 @@ private extension NSEvent {
 }
 
 #endif
+
+
+#if os(iOS)
+@MainActor
+@Suite struct iOSRowDragModifierTests {
+    private struct Row: Identifiable, Equatable {
+        let id: Int
+        let name: String
+    }
+
+    @Test func onRowDragStoresItemProvider() {
+        let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+        #expect(base.configuration.itemProvider == nil)
+
+        let configured = base.onRowDrag { row in
+            NSItemProvider(object: row.name as NSString)
+        }
+        #expect(configured.configuration.itemProvider != nil)
+        let provider = configured.configuration.itemProvider?(Row(id: 1, name: "a"))
+        #expect(provider != nil)
+        #expect(base.configuration.itemProvider == nil)
+    }
+}
+#endif

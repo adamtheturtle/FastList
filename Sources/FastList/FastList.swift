@@ -226,6 +226,20 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     }
     #endif
 
+    /// Makes rows draggable on iOS / iPadOS. Return an `NSItemProvider`, or `nil` to make
+    /// that row non-draggable.
+    ///
+    /// ```swift
+    /// .onRowDrag { row in
+    ///     NSItemProvider(object: row.name as NSString)
+    /// }
+    /// ```
+    #if os(iOS)
+    public func onRowDrag(_ itemProvider: @escaping (Item) -> NSItemProvider?) -> Self {
+        copy { $0.itemProvider = itemProvider }
+    }
+    #endif
+
     /// Observes the lifetime of a row drag. `began` receives the dragging session so the host
     /// can inspect its pasteboard and react (for example, reveal a drop zone); `ended` fires
     /// on drop or cancel. Keeps app-specific pasteboard types out of the list itself.
@@ -874,13 +888,21 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
 
             // Only attach a context menu when one is configured, so unconfigured rows
             // don't long-press into an empty menu.
-            Group {
+            let withMenu: AnyView = {
                 if menu.isEmpty {
-                    base
-                } else {
-                    base.contextMenu { contextButtons(menu) }
+                    return AnyView(base)
                 }
+                return AnyView(base.contextMenu { contextButtons(menu) })
+            }()
+            #if os(iOS)
+            if let provider = configuration.itemProvider?(item) {
+                withMenu.onDrag { provider }
+            } else {
+                withMenu
             }
+            #else
+            withMenu
+            #endif
         }
 
         @ViewBuilder
