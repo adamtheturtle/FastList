@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `swipeActions(allowsFullSwipe:)` and coverage for more than two actions per edge.
 - `FastListSection` and a sectioned initializer with SwiftUI `Section` headers on iOS.
 - Animated insert/delete for in-order identity changes without a full `reloadData`.
+- `FastListIDDiff` ordered-identity diff as a stepping-stone toward diffable data sources.
 - Shared `FastListReachEndGate` for once-per-row-count paging on macOS and iOS.
 - iOS / iPadOS `onReachEnd` wiring on the native SwiftUI `List` backend.
 - Vale prose lint and Dependabot auto-merge for GitHub Actions.
