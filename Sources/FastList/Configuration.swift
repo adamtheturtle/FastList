@@ -118,6 +118,7 @@ struct FastListConfiguration<Item: Identifiable> {
     /// Rebuilds rows when caller-controlled row-content inputs change even if row ids did
     /// not. Selection-only updates still reuse the existing table rows.
     var rowContentID: AnyHashable?
+    var highlightsRowsOnHover = false
     /// Shown instead of the list when `items` is empty.
     var emptyStateContent: (() -> AnyView)?
     var listHeaderContent: (() -> AnyView)?

@@ -270,6 +270,11 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.rowContentID = AnyHashable(id) }
     }
 
+    /// Highlights the row under the pointer on macOS.
+    public func hoverHighlight(_ enabled: Bool = true) -> Self {
+        copy { $0.highlightsRowsOnHover = enabled }
+    }
+
     /// Pins a header view above the list rows.
     public func listHeader<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> Self {
         copy { $0.listHeaderContent = { AnyView(content()) } }
@@ -368,6 +373,10 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         // Returns whether the press was consumed; `false` lets the table fall through to
         // `super.keyDown(with:)` so the responder chain still sees Return.
         table.onReturn = { [weak coordinator = context.coordinator] in coordinator?.handleReturn() ?? false }
+        table.onHoveredRowChanged = { [weak coordinator = context.coordinator, weak table] row in
+            guard let coordinator, let table else { return }
+            coordinator.updateHoveredRow(row, in: table)
+        }
         table.onSelectAll = { [weak coordinator = context.coordinator] in coordinator?.handleSelectAll() ?? false }
 
         // Drive the right-click menu
