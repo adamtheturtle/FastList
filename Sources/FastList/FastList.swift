@@ -370,6 +370,9 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     }
 
     /// Reports the inclusive range of row indices currently visible in the viewport.
+    ///
+    /// Indices are zero-based positions in the `items` array you passed to ``FastList``,
+    /// updated whenever the visible rect changes.
     public func onVisibleRowRangeChange(_ action: @escaping (ClosedRange<Int>) -> Void) -> Self {
         copy { $0.onVisibleRowRangeChange = action }
     }
@@ -618,6 +621,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                     honorNativeScrollToIfNeeded(proxy: proxy)
                     lastPrefetchedThroughRow = -1
                     if items.isEmpty {
+                        lastNativeVisibleRange = nil
                         reportNativeTopRowID(nil)
                     }
                 }
@@ -722,7 +726,10 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
 
         private func reportNativeVisibleRange(from bounds: [Int: NativeVisibleRowBounds]) {
             guard configuration.onVisibleRowRangeChange != nil else { return }
-            guard !items.isEmpty else { return }
+            guard !items.isEmpty else {
+                lastNativeVisibleRange = nil
+                return
+            }
 
             let listHeight = nativeListHeight > 0 ? nativeListHeight : .greatestFiniteMagnitude
             let visible = bounds.filter { _, frame in
