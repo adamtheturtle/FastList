@@ -233,6 +233,16 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.rowContentID = AnyHashable(id) }
     }
 
+    /// Adds an accessibility value such as "3 of 100" to each row.
+    public func accessibilityRowPosition(_ enabled: Bool = true) -> Self {
+        copy { $0.accessibilityIncludesRowPosition = enabled }
+    }
+
+    /// Posts an accessibility announcement when the selection set changes.
+    public func accessibilityAnnounceSelectionChanges(_ enabled: Bool = true) -> Self {
+        copy { $0.accessibilityAnnouncesSelectionChanges = enabled }
+    }
+
     /// Fires when the last visible row comes within `threshold` rows of the end of the data
     /// as a user scroll settles - the trigger for load-more / infinite-scroll paging.
     ///
@@ -399,7 +409,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             ScrollViewReader { proxy in
                 List {
                     ForEach(Array(items.enumerated()), id: \.element.id) { indexedItem in
-                        row(for: indexedItem.element)
+                        row(for: indexedItem.element, at: indexedItem.offset)
                             .id(indexedItem.element.id)
                             .background {
                                 GeometryReader { geometry in
@@ -454,7 +464,16 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                 .onKeyPress(.return) {
                     handleNativeReturnKey()
                 }
+                .onChange(of: selection) { _, newValue in
+                    announceNativeSelectionChange(count: newValue.count)
+                }
             }
+        }
+
+        private func announceNativeSelectionChange(count: Int) {
+            guard configuration.accessibilityAnnouncesSelectionChanges else { return }
+            let message = count == 1 ? "1 row selected" : "\(count) rows selected"
+            AccessibilityNotification.Announcement(message).post()
         }
 
         private func consumeNativeReachEnd(lastVisibleRow: Int) {
@@ -542,11 +561,14 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         }
 
         @ViewBuilder
-        private func row(for item: Item) -> some View {
+        private func row(for item: Item, at index: Int) -> some View {
             let leading = configuration.leadingSwipe?(item) ?? []
             let trailing = configuration.trailingSwipe?(item) ?? []
             let menu = configuration.contextMenu?(item) ?? []
             let isSelected = selection.contains(item.id)
+            let positioned = configuration.accessibilityIncludesRowPosition
+                ? AnyView(rowContent(item).accessibilityValue("\(index + 1) of \(items.count)"))
+                : rowContent(item)
             // Drive selection on tap rather than via a `List(selection:)` binding, so the
             // row shows our own highlight without the system's focused-cell ring / text
             // recolor (see `body`). A `.rect` content shape makes the whole row tappable
@@ -563,7 +585,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
                 .listRowBackground(selectionBackground(isSelected: isSelected))
             #else
-            let base = rowContent(item)
+            let base = positioned
                 .contentShape(.rect)
                 .onTapGesture(count: 2) {
                     configuration.onDoubleClick?(item)
