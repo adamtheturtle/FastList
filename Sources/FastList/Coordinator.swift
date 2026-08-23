@@ -109,7 +109,13 @@ extension FastList {
                 guard let cell, let tableView else { return }
                 tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: cell.rowIndex))
             }
+            cell.wantsLayer = true
             cell.host(parent.rowContent(items[row]))
+            if parent.configuration.alternatingRowBackgrounds, row.isMultiple(of: 2) {
+                cell.layer?.backgroundColor = NSColor.alternatingContentBackgroundColors[1].cgColor
+            } else {
+                cell.layer?.backgroundColor = nil
+            }
             return cell
         }
 
