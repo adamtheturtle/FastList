@@ -176,4 +176,3 @@ struct FastListConfiguration<Item: Identifiable> {
     /// inside a `NavigationSplitView` sidebar/detail relationship.
     var usesNativeSelectionBinding = false
 }
-
