@@ -546,6 +546,12 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                     listFooterContent()
                 }
             }
+            .onChange(of: items.isEmpty) { _, isEmpty in
+                if isEmpty {
+                    lastNativeVisibleRange = nil
+                    reportNativeTopRowID(nil)
+                }
+            }
         }
 
         @ViewBuilder
