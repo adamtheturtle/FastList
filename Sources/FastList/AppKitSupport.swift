@@ -19,8 +19,17 @@ final class KeyHandlingTableView: NSTableView {
     /// `false` (no `onReturnKey` configured, or nothing selected) means the event was not
     /// handled here.
     var onReturn: (() -> Bool)?
+    /// Selects every row when the user presses Command-A. Return whether the event was consumed.
+    var onSelectAll: (() -> Bool)?
+
+    override var acceptsFirstResponder: Bool { true }
 
     override func keyDown(with event: NSEvent) {
+        if event.modifierFlags.contains(.command),
+           event.charactersIgnoringModifiers?.lowercased() == "a",
+           onSelectAll?() == true {
+            return
+        }
         // 36 = Return, 76 = keypad Enter.
         let isReturn = event.keyCode == 36 || event.keyCode == 76
         // Fall through to the responder chain whenever the handler declines the event, so a
