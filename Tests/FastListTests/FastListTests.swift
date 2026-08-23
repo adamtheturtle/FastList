@@ -932,7 +932,7 @@ private extension NSEvent {
 
 #if os(iOS)
 @MainActor
-@Suite struct iOSRowDragModifierTests {
+@Suite struct IOSRowDragModifierTests {
     private struct Row: Identifiable, Equatable {
         let id: Int
         let name: String

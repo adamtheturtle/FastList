@@ -164,4 +164,3 @@ struct FastListConfiguration<Item: Identifiable> {
     #endif
     var listStyle: FastListStyle = .inset
 }
-
