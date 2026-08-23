@@ -88,7 +88,7 @@ final class HostingCellView: NSTableCellView {
     var rowIndex = 0
     weak var enclosingTableView: NSTableView?
     var onHeightChange: (() -> Void)?
-    private var lastReportedHeight: CGFloat = 0
+    private var lastReportedHeight: CGFloat?
 
     init(identifier: NSUserInterfaceItemIdentifier) {
         super.init(frame: .zero)
@@ -104,7 +104,7 @@ final class HostingCellView: NSTableCellView {
         super.layout()
         guard let hosting else { return }
         let height = hosting.fittingSize.height
-        guard abs(height - lastReportedHeight) > 0.5 else { return }
+        if let lastReportedHeight, abs(height - lastReportedHeight) <= 0.5 { return }
         lastReportedHeight = height
         let notify = onHeightChange
         RunLoop.main.perform {
@@ -115,7 +115,7 @@ final class HostingCellView: NSTableCellView {
     func host(_ view: AnyView) {
         if let hosting {
             hosting.rootView = view
-            lastReportedHeight = 0
+            lastReportedHeight = nil
             needsLayout = true
             return
         }
