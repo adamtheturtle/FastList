@@ -999,4 +999,3 @@ private extension NSEvent {
         #expect(list.sections == nil)
     }
 }
-

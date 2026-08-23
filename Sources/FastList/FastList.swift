@@ -734,7 +734,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             }
         }
 
-
         @ViewBuilder
         private var nativeSectionedRows: some View {
             if let sections {
