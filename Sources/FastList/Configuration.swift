@@ -38,6 +38,17 @@ public enum FastListFocusRing: Sendable {
     case exterior
 }
 
+/// Visual list chrome that maps onto `NSTableView.Style` on macOS and SwiftUI
+/// `ListStyle` on iOS / iPadOS.
+public enum FastListStyle: Sendable {
+    /// Inset rows with rounded selection (macOS default; iOS `.inset`).
+    case inset
+    /// Edge-to-edge rows without sidebar inset (iOS `.plain`).
+    case plain
+    /// Sidebar appearance for a `NavigationSplitView` leading column.
+    case sidebar
+}
+
 public enum FastListActionRole: Sendable {
     /// A standard action (grey background unless a ``SwipeAction/tint`` is given).
     case normal
@@ -151,5 +162,5 @@ struct FastListConfiguration<Item: Identifiable> {
     #if os(macOS)
         var focusRing: FastListFocusRing = .default
     #endif
+    var listStyle: FastListStyle = .inset
 }
-

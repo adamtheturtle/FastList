@@ -762,7 +762,6 @@ private extension NSEvent {
         #expect(base.configuration.onReachEnd == nil)
     }
 
-
     @Test func focusRingConfiguresTable() {
         let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
         #expect(base.configuration.focusRing == .default)
@@ -777,6 +776,23 @@ private extension NSEvent {
         let exterior = base.focusRing(.exterior)
         exterior.applyFocusRing(to: table)
         #expect(table.focusRingType == .exterior)
+    }
+
+    @Test func listStyleStoresAndAppliesOnMacOS() {
+        let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+        #expect(base.configuration.listStyle == .inset)
+
+        let sidebar = base.listStyle(.sidebar)
+        #expect(sidebar.configuration.listStyle == .sidebar)
+
+        let table = NSTableView()
+        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
+        sidebar.applyListStyle(to: table)
+        #expect(table.style == .sourceList)
+
+        let plain = base.listStyle(.plain)
+        plain.applyListStyle(to: table)
+        #expect(table.style == .plain)
     }
 
     @Test func swipeEdgeRoutesToTheRightSlot() {
@@ -914,10 +930,9 @@ private extension NSEvent {
 
 #endif
 
-
 #if os(iOS)
 @MainActor
-@Suite struct iOSRowDragModifierTests {
+@Suite struct IOSRowDragModifierTests {
     private struct Row: Identifiable, Equatable {
         let id: Int
         let name: String

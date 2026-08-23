@@ -298,7 +298,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.accessibilityAnnouncesSelectionChanges = enabled }
     }
 
-
     /// Customizes the AppKit focus ring drawn around the table and its rows.
     #if os(macOS)
     public func focusRing(_ style: FastListFocusRing) -> Self {
@@ -309,6 +308,15 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// Highlights the row under the pointer on macOS.
     public func hoverHighlight(_ enabled: Bool = true) -> Self {
         copy { $0.highlightsRowsOnHover = enabled }
+    }
+
+    /// Chooses the native list chrome (inset, plain, or sidebar).
+    ///
+    /// On macOS this sets `NSTableView.style`. On iOS / iPadOS it sets the SwiftUI
+    /// `List` style. Use ``FastListStyle/sidebar`` when the list is the leading column
+    /// of a `NavigationSplitView`.
+    public func listStyle(_ style: FastListStyle) -> Self {
+        copy { $0.listStyle = style }
     }
 
     /// Draws alternating row backgrounds on every second row.
@@ -421,7 +429,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     public func makeNSView(context: Context) -> FastListContainerView {
         let table = KeyHandlingTableView()
         table.headerView = nil
-        table.style = .inset
+        applyListStyle(to: table)
         table.usesAutomaticRowHeights = true
         configureSelection(for: table)
         applyFocusRing(to: table)
@@ -482,6 +490,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         guard let table = coordinator.tableView else { return }
         configureSelection(for: table)
         applyFocusRing(to: table)
+        applyListStyle(to: table)
         table.usesAlternatingRowBackgroundColors = configuration.alternatingRowBackgrounds
         coordinator.updateContextMenuRegistration(on: table)
         coordinator.updateDragRegistration(on: table)
@@ -527,6 +536,17 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         table.focusRingType = nsType
     }
 
+    func applyListStyle(to table: NSTableView) {
+        switch configuration.listStyle {
+        case .inset:
+            table.style = .inset
+        case .plain:
+            table.style = .plain
+        case .sidebar:
+            table.style = .sourceList
+        }
+    }
+
     func configureSelection(for table: NSTableView) {
         table.allowsMultipleSelection = configuration.selectionMode == .multiple
     }
@@ -539,7 +559,23 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
 #else
     // MARK: View (iOS / iPadOS)
 
-    /// Vertical bounds of each visible row in the list coordinate space.
+    /// Maps ``FastListStyle`` onto SwiftUI `ListStyle` for the native iOS backend.
+    private struct NativeListStyleModifier: ViewModifier {
+        let style: FastListStyle
+
+        @ViewBuilder
+        func body(content: Content) -> some View {
+            switch style {
+            case .inset:
+                content.listStyle(.inset)
+            case .plain:
+                content.listStyle(.plain)
+            case .sidebar:
+                content.listStyle(.sidebar)
+            }
+        }
+    }
+
     private struct NativeVisibleRowBounds: Equatable {
         var minY: CGFloat
         var maxY: CGFloat
@@ -643,7 +679,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                 // rectangle that runs edge to edge and slides behind the `NavigationSplitView`
                 // sidebar, so we drive selection ourselves and draw our own inset,
                 // rounded-rectangle highlight instead - no bleed, no clipping, no system emphasis.
-                .listStyle(.plain)
+                .modifier(NativeListStyleModifier(style: configuration.listStyle))
                 .background {
                     GeometryReader { geometry in
                         Color.clear.onAppear { nativeListHeight = geometry.size.height }
