@@ -6,6 +6,7 @@
 #if os(macOS)
     import AppKit
 #endif
+import Foundation
 import SwiftUI
 
 /// How many rows a ``FastList`` lets the user select.
@@ -165,4 +166,6 @@ struct FastListConfiguration<Item: Identifiable> {
         var focusRing: FastListFocusRing = .default
     #endif
     var listStyle: FastListStyle = .inset
+    /// Called when the user reorders rows. Arguments match SwiftUI `onMove`.
+    var onMoveRows: ((IndexSet, Int) -> Void)?
 }

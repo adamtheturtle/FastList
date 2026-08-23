@@ -42,6 +42,8 @@ extension FastList {
         private var hoveredRow = -1
         /// Anchor for shift-click range selection.
         private var selectionAnchorRow: Int?
+        /// Rows being dragged for an in-list reorder.
+        private var draggingRowIndexes = IndexSet()
 
         @_spi(FastListTesting)
         public var testingAllowsShiftRangeSelection: Bool {
@@ -75,9 +77,20 @@ extension FastList {
 
         /// Keeps AppKit's drag-source registration aligned with the current modifier value.
         func updateDragRegistration(on tableView: NSTableView) {
-            let isEnabled = parent.configuration.pasteboardItem != nil
-            tableView.setDraggingSourceOperationMask(isEnabled ? [.copy, .generic] : [], forLocal: true)
-            tableView.setDraggingSourceOperationMask(isEnabled ? .copy : [], forLocal: false)
+            let dragEnabled = parent.configuration.pasteboardItem != nil
+            let reorderEnabled = parent.configuration.onMoveRows != nil
+            var localMask: NSDragOperation = []
+            if dragEnabled {
+                localMask.formUnion([.copy, .generic])
+            }
+            if reorderEnabled {
+                localMask.insert(.move)
+            }
+            tableView.setDraggingSourceOperationMask(localMask, forLocal: true)
+            tableView.setDraggingSourceOperationMask(dragEnabled ? .copy : [], forLocal: false)
+            if reorderEnabled {
+                tableView.registerForDraggedTypes([.string])
+            }
         }
 
         func reloadIfNeeded(_ newItems: [Item], force: Bool) {
@@ -227,15 +240,22 @@ extension FastList {
         public func tableView(_: NSTableView, pasteboardWriterForRow row: Int) -> (any NSPasteboardWriting)? {
             guard items.indices.contains(row) else { return nil }
 
-            return parent.configuration.pasteboardItem?(items[row])
+            if let item = parent.configuration.pasteboardItem?(items[row]) {
+                return item
+            }
+            guard parent.configuration.onMoveRows != nil else { return nil }
+            let placeholder = NSPasteboardItem()
+            placeholder.setString("fastlist-reorder:\(row)", forType: .string)
+            return placeholder
         }
 
         public func tableView(
             _: NSTableView,
             draggingSession session: NSDraggingSession,
             willBeginAt _: NSPoint,
-            forRowIndexes _: IndexSet
+            forRowIndexes rowIndexes: IndexSet
         ) {
+            draggingRowIndexes = rowIndexes
             parent.configuration.onDragSessionBegan?(session)
         }
 
@@ -463,6 +483,37 @@ extension FastList {
                 itemCount: itemCount,
                 threshold: threshold
             )
+        }
+
+        // MARK: Reorder drop
+
+        public func tableView(
+            _ tableView: NSTableView,
+            validateDrop info: any NSDraggingInfo,
+            proposedRow row: Int,
+            proposedDropOperation dropOperation: NSTableView.DropOperation
+        ) -> NSDragOperation {
+            guard parent.configuration.onMoveRows != nil,
+                  info.draggingSource as AnyObject? === tableView else { return [] }
+            if dropOperation == .above {
+                return .move
+            }
+            tableView.setDropRow(row, dropOperation: .above)
+            return .move
+        }
+
+        public func tableView(
+            _ tableView: NSTableView,
+            acceptDrop info: any NSDraggingInfo,
+            row: Int,
+            dropOperation _: NSTableView.DropOperation
+        ) -> Bool {
+            guard let onMove = parent.configuration.onMoveRows,
+                  info.draggingSource as AnyObject? === tableView,
+                  !draggingRowIndexes.isEmpty else { return false }
+            onMove(draggingRowIndexes, row)
+            draggingRowIndexes = IndexSet()
+            return true
         }
 
         // MARK: Swipe actions
