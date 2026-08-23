@@ -233,6 +233,11 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.rowContentID = AnyHashable(id) }
     }
 
+    /// Highlights the row under the pointer on macOS.
+    public func hoverHighlight(_ enabled: Bool = true) -> Self {
+        copy { $0.highlightsRowsOnHover = enabled }
+    }
+
     /// Fires when the last visible row comes within `threshold` rows of the end of the data
     /// as a user scroll settles - the trigger for load-more / infinite-scroll paging.
     ///
@@ -310,6 +315,10 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         // Returns whether the press was consumed; `false` lets the table fall through to
         // `super.keyDown(with:)` so the responder chain still sees Return.
         table.onReturn = { [weak coordinator = context.coordinator] in coordinator?.handleReturn() ?? false }
+        table.onHoveredRowChanged = { [weak coordinator = context.coordinator, weak table] row in
+            guard let coordinator, let table else { return }
+            coordinator.updateHoveredRow(row, in: table)
+        }
 
         // Drive the right-click menu through the table's own `menu` property (populated
         // lazily in `menuNeedsUpdate`) rather than overriding `menu(for:)`, so AppKit's

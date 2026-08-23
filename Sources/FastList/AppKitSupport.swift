@@ -19,6 +19,36 @@ final class KeyHandlingTableView: NSTableView {
     /// `false` (no `onReturnKey` configured, or nothing selected) means the event was not
     /// handled here.
     var onReturn: (() -> Bool)?
+    /// Reports the row under the mouse, or `-1` when the pointer left the table.
+    var onHoveredRowChanged: ((Int) -> Void)?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas {
+            removeTrackingArea(area)
+        }
+        addTrackingArea(
+            NSTrackingArea(
+                rect: bounds,
+                options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect],
+                owner: self,
+                userInfo: nil
+            )
+        )
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        onHoveredRowChanged?(row(at: point))
+        super.mouseMoved(with: event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        onHoveredRowChanged?(-1)
+        super.mouseExited(with: event)
+    }
 
     override func keyDown(with event: NSEvent) {
         // 36 = Return, 76 = keypad Enter.

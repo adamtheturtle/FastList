@@ -32,6 +32,7 @@ extension FastList {
         /// scrolls once rather than on every update. Cleared when the target goes back to `nil`,
         /// so re-setting the same id later scrolls again.
         private var lastScrolledToID: Item.ID?
+        private var hoveredRow = -1
 
         init(_ parent: FastList) {
             self.parent = parent
@@ -98,8 +99,24 @@ extension FastList {
         public func tableView(_ tableView: NSTableView, viewFor _: NSTableColumn?, row: Int) -> NSView? {
             let cell = tableView.makeView(withIdentifier: .fastListCell, owner: self) as? HostingCellView
                 ?? HostingCellView(identifier: .fastListCell)
+            cell.wantsLayer = true
             cell.host(parent.rowContent(items[row]))
+            if parent.configuration.highlightsRowsOnHover, row == hoveredRow {
+                cell.layer?.backgroundColor = NSColor.selectedContentBackgroundColor.withAlphaComponent(0.15).cgColor
+            } else {
+                cell.layer?.backgroundColor = nil
+            }
             return cell
+        }
+
+        func updateHoveredRow(_ row: Int, in tableView: NSTableView) {
+            guard parent.configuration.highlightsRowsOnHover else { return }
+            guard row != hoveredRow else { return }
+
+            let rowsToRefresh = IndexSet([hoveredRow, row].filter { $0 >= 0 })
+            hoveredRow = row
+            guard !rowsToRefresh.isEmpty else { return }
+            tableView.reloadData(forRowIndexes: rowsToRefresh, columnIndexes: IndexSet(integer: 0))
         }
 
         public func tableView(_: NSTableView, pasteboardWriterForRow row: Int) -> (any NSPasteboardWriting)? {
