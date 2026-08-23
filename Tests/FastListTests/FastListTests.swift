@@ -795,4 +795,16 @@ private extension NSEvent {
     }
 }
 
+
+@MainActor
+@Suite struct FastListHoverTrackingTests {
+    @Test func trackingAreaIncludesMouseEnteredAndExited() {
+        let table = KeyHandlingTableView(frame: NSRect(x: 0, y: 0, width: 200, height: 200))
+        table.updateTrackingAreas()
+        let options = table.trackingAreas.map(\.options)
+        #expect(options.contains { $0.contains(.mouseEnteredAndExited) })
+        #expect(options.contains { $0.contains(.mouseMoved) })
+    }
+}
+
 #endif
