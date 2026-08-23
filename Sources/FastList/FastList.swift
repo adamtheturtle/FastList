@@ -278,6 +278,17 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         }
     }
 
+    /// Shows `content` when the list has no rows instead of an empty table or list.
+    ///
+    /// ```swift
+    /// .emptyState {
+    ///     ContentUnavailableView("No results", systemImage: "magnifyingglass")
+    /// }
+    /// ```
+    public func emptyState<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> Self {
+        copy { $0.emptyStateContent = { AnyView(content()) } }
+    }
+
     private func copy(_ mutate: (inout FastListConfiguration<Item>) -> Void) -> Self {
         var copy = self
         mutate(&copy.configuration)
@@ -291,7 +302,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         Coordinator(self)
     }
 
-    public func makeNSView(context: Context) -> NSScrollView {
+    public func makeNSView(context: Context) -> FastListContainerView {
         let table = KeyHandlingTableView()
         table.headerView = nil
         table.style = .inset
@@ -323,24 +334,26 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         context.coordinator.tableView = table
         context.coordinator.reloadIfNeeded(items, force: true)
 
-        let scroll = NSScrollView()
-        scroll.documentView = table
-        scroll.hasVerticalScroller = true
-        scroll.drawsBackground = false
+        let container = FastListContainerView(frame: .zero)
+        container.scrollView.documentView = table
+        container.scrollView.hasVerticalScroller = true
+        container.scrollView.drawsBackground = false
+        context.coordinator.containerView = container
         // Track every bounds change (wheel, scrollbar, keyboard, and trackpad) plus the final
         // settled position after live scrolling. The coordinator owns the observer lifecycle so
         // SwiftUI dismantling can explicitly remove both registrations.
-        context.coordinator.installScrollObservers(for: scroll)
-        return scroll
+        context.coordinator.installScrollObservers(for: container.scrollView)
+        return container
     }
 
-    public static func dismantleNSView(_ nsView: NSScrollView, coordinator: Coordinator) {
+    public static func dismantleNSView(_ container: FastListContainerView, coordinator: Coordinator) {
         coordinator.removeScrollObservers()
         coordinator.tableView = nil
-        nsView.documentView = nil
+        coordinator.containerView = nil
+        container.scrollView.documentView = nil
     }
 
-    public func updateNSView(_: NSScrollView, context: Context) {
+    public func updateNSView(_ container: FastListContainerView, context: Context) {
         let coordinator = context.coordinator
         coordinator.parent = self
         guard let table = coordinator.tableView else { return }
@@ -351,6 +364,9 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         // bare selection change, which is the whole point of the rewrite.
         coordinator.reloadIfNeeded(items, force: false)
         coordinator.applySelection(selection)
+
+        let showsEmpty = items.isEmpty && configuration.emptyStateContent != nil
+        container.updateEmptyState(configuration.emptyStateContent?(), isVisible: showsEmpty)
 
         // Honors the documented "scrolls a row into view *once*" contract: the coordinator
         // remembers the last id it scrolled to and declines repeats, so a caller who stores
@@ -388,6 +404,17 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// Return share the same modifiers as the macOS backend.
     extension FastList: View {
         public var body: some View {
+            Group {
+                if items.isEmpty, let emptyStateContent = configuration.emptyStateContent {
+                    emptyStateContent()
+                } else {
+                    nativeListBody
+                }
+            }
+        }
+
+        @ViewBuilder
+        private var nativeListBody: some View {
             // Note: no `selection:` binding on the `List`. A selection-bound `List` in a
             // `NavigationSplitView` content column draws the system's emphasized selection on
             // the focused cell - a saturated blue focus ring plus a vibrant text recolor that

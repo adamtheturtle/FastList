@@ -17,7 +17,9 @@ struct DemoApp: App {
             ContentView()
                 .frame(minWidth: 520, minHeight: 600)
         }
+        #if os(macOS)
         .windowStyle(.titleBar)
+        #endif
     }
 }
 

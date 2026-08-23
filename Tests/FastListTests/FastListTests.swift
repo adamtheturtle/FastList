@@ -1,9 +1,9 @@
-import AppKit
 import SwiftUI
 import Testing
 @testable import FastList
 
 #if os(macOS)
+import AppKit
 
 private struct Row: Identifiable, Equatable {
     let id: Int
@@ -210,13 +210,14 @@ private final class SnapshotReloadTableView: NSTableView {
 
     @Test func scrollObservationIsRemovedDuringTeardown() {
         let coordinator = makeCoordinator([])
-        let scrollView = NSScrollView()
+        let container = FastListContainerView(frame: .zero)
+        let scrollView = container.scrollView
         coordinator.installScrollObservers(for: scrollView)
 
         #expect(coordinator.observedScrollView === scrollView)
         #expect(scrollView.contentView.postsBoundsChangedNotifications)
 
-        FastList<Row>.dismantleNSView(scrollView, coordinator: coordinator)
+        FastList<Row>.dismantleNSView(container, coordinator: coordinator)
 
         #expect(coordinator.observedScrollView == nil)
         #expect(!scrollView.contentView.postsBoundsChangedNotifications)

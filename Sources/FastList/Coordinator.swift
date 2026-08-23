@@ -12,6 +12,7 @@ extension FastList {
     public final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
         var parent: FastList
         weak var tableView: NSTableView?
+        weak var containerView: FastListContainerView?
         private(set) weak var observedScrollView: NSScrollView?
         private var items: [Item] = []
         private var indexByID: [Item.ID: Int] = [:]
