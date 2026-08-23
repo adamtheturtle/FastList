@@ -70,6 +70,10 @@ extension FastList {
                 newItems.enumerated().map { ($1.id, $0) },
                 uniquingKeysWith: { first, _ in first }
             )
+            // Drop a hover index that no longer exists after a filter/delete shrinks the list.
+            if hoveredRow >= items.count {
+                hoveredRow = -1
+            }
             let reconciledSelection = reconciledFastListSelection(parent.selection, items: newItems)
             if reconciledSelection != parent.selection { parent.selection = reconciledSelection }
             if newItems.isEmpty { reportTopRow(nil) }
@@ -126,10 +130,11 @@ extension FastList {
 
         func updateHoveredRow(_ row: Int, in tableView: NSTableView) {
             guard parent.configuration.highlightsRowsOnHover else { return }
-            guard row != hoveredRow else { return }
+            let clamped = items.indices.contains(row) ? row : -1
+            guard clamped != hoveredRow else { return }
 
-            let rowsToRefresh = IndexSet([hoveredRow, row].filter { $0 >= 0 })
-            hoveredRow = row
+            let rowsToRefresh = IndexSet([hoveredRow, clamped].filter { items.indices.contains($0) })
+            hoveredRow = clamped
             guard !rowsToRefresh.isEmpty else { return }
             tableView.reloadData(forRowIndexes: rowsToRefresh, columnIndexes: IndexSet(integer: 0))
         }

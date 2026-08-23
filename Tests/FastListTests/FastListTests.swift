@@ -19,6 +19,16 @@ private final class CountingTableView: NSTableView {
     }
 }
 
+
+private final class PartialReloadTableView: NSTableView {
+    var partialReloadRowIndexes: [IndexSet] = []
+
+    override func reloadData(forRowIndexes rowIndexes: IndexSet, columnIndexes: IndexSet) {
+        partialReloadRowIndexes.append(rowIndexes)
+        super.reloadData(forRowIndexes: rowIndexes, columnIndexes: columnIndexes)
+    }
+}
+
 private final class DragRegistrationTableView: NSTableView {
     var localMask: NSDragOperation = []
     var externalMask: NSDragOperation = []
@@ -308,6 +318,35 @@ private final class SnapshotReloadTableView: NSTableView {
         coordinator.reloadIfNeeded(list.items, force: true)
         coordinator.performMenuAction(for: 1, entryIndex: 0)
         #expect(opened == ["original", "replacement"])
+    }
+
+
+    @Test func hoverIndexClampsWhenTheRowSetShrinks() {
+        let table = PartialReloadTableView()
+        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
+        let rows = [
+            Row(id: 1, name: "a"),
+            Row(id: 2, name: "b"),
+            Row(id: 3, name: "c")
+        ]
+        var list = FastList(rows, selection: .constant([])) { Text($0.name) }
+            .hoverHighlight(true)
+        let coordinator = list.makeCoordinator()
+        coordinator.tableView = table
+        table.dataSource = coordinator
+        table.delegate = coordinator
+        coordinator.reloadIfNeeded(rows, force: true)
+        coordinator.updateHoveredRow(2, in: table)
+        #expect(table.partialReloadRowIndexes.last == IndexSet(integer: 2))
+
+        list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+            .hoverHighlight(true)
+        coordinator.parent = list
+        table.partialReloadRowIndexes.removeAll()
+        coordinator.reloadIfNeeded(list.items, force: false)
+        // Stale hover must not reload an out-of-bounds row.
+        coordinator.updateHoveredRow(2, in: table)
+        #expect(table.partialReloadRowIndexes.isEmpty)
     }
 
     @Test func contextMenuActionDoesNotRetargetWhenEntriesReorder() {
