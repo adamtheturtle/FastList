@@ -321,7 +321,7 @@ extension FastList {
 
             let itemID = items[row].id
             menu.autoenablesItems = false
-            for (entryIndex, entry) in builder(items[row]).enumerated() {
+            for (entryIndex, entry) in builder(items[row], parent.selection).enumerated() {
                 switch entry {
                 case .separator:
                     menu.addItem(.separator())
@@ -343,7 +343,7 @@ extension FastList {
             guard let row = indexByID[itemID], items.indices.contains(row),
                   let builder = parent.configuration.contextMenu else { return }
 
-            let entries = builder(items[row])
+            let entries = builder(items[row], parent.selection)
             guard entries.indices.contains(entryIndex),
                   case let .button(title, isEnabled, _, action) = entries[entryIndex],
                   expectedTitle == nil || title == expectedTitle,

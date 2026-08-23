@@ -257,7 +257,7 @@ private final class SnapshotReloadTableView: NSTableView {
         coordinator.updateContextMenuRegistration(on: table)
         #expect(table.menu == nil)
 
-        coordinator.parent = base.rowContextMenu { _ in [.button(title: "Open") {}] }
+        coordinator.parent = base.rowContextMenu { _, _ in [.button(title: "Open") {}] }
         coordinator.updateContextMenuRegistration(on: table)
         #expect(table.menu != nil)
         #expect(table.menu?.delegate === coordinator)
@@ -290,7 +290,7 @@ private final class SnapshotReloadTableView: NSTableView {
     @Test func contextMenuActionsResolveAgainstTheCurrentSnapshot() {
         var opened: [String] = []
         var list = FastList([Row(id: 1, name: "original")], selection: .constant([])) { Text($0.name) }
-            .rowContextMenu { row in [.button(title: "Open") { opened.append(row.name) }] }
+            .rowContextMenu { row, _ in [.button(title: "Open") { opened.append(row.name) }] }
         let coordinator = list.makeCoordinator()
         coordinator.reloadIfNeeded(list.items, force: true)
 
@@ -302,7 +302,7 @@ private final class SnapshotReloadTableView: NSTableView {
         #expect(opened == ["original"])
 
         list = FastList([Row(id: 1, name: "replacement")], selection: .constant([])) { Text($0.name) }
-            .rowContextMenu { row in [.button(title: "Open") { opened.append(row.name) }] }
+            .rowContextMenu { row, _ in [.button(title: "Open") { opened.append(row.name) }] }
         coordinator.parent = list
         coordinator.reloadIfNeeded(list.items, force: true)
         coordinator.performMenuAction(for: 1, entryIndex: 0)
@@ -312,7 +312,7 @@ private final class SnapshotReloadTableView: NSTableView {
     @Test func contextMenuActionDoesNotRetargetWhenEntriesReorder() {
         var performed: [String] = []
         var list = FastList([Row(id: 1, name: "row")], selection: .constant([])) { Text($0.name) }
-            .rowContextMenu { _ in
+            .rowContextMenu { _, _ in
                 [
                     .button(title: "Open") { performed.append("open") },
                     .button(title: "Delete") { performed.append("delete") }
@@ -322,7 +322,7 @@ private final class SnapshotReloadTableView: NSTableView {
         coordinator.reloadIfNeeded(list.items, force: true)
 
         list = FastList(list.items, selection: .constant([])) { Text($0.name) }
-            .rowContextMenu { _ in
+            .rowContextMenu { _, _ in
                 [
                     .button(title: "Delete") { performed.append("delete") },
                     .button(title: "Open") { performed.append("open") }
@@ -615,7 +615,7 @@ private extension NSEvent {
             .onDoubleClick { _ in }
             .onReturnKey { _ in }
             .swipeActions(edge: .trailing) { _ in [] }
-            .rowContextMenu { _ in [] }
+            .rowContextMenu { _, _ in [] }
             .rowContentID("content")
 
         #expect(configured.configuration.onDoubleClick != nil)

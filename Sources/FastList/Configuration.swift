@@ -80,7 +80,7 @@ struct FastListConfiguration<Item: Identifiable> {
     var onReturnKey: ((Item) -> Void)?
     var leadingSwipe: ((Item) -> [SwipeAction])?
     var trailingSwipe: ((Item) -> [SwipeAction])?
-    var contextMenu: ((Item) -> [MenuItem])?
+    var contextMenu: ((Item, Set<Item.ID>) -> [MenuItem])?
     // The drag payload/session callbacks are typed in AppKit (NSPasteboardItem /
     // NSDraggingSession), so they exist only on macOS.
     #if os(macOS)
