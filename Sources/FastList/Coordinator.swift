@@ -176,9 +176,9 @@ extension FastList {
 
             if NSEvent.modifierFlags.contains(.shift), let anchor = selectionAnchorRow, anchor >= 0 {
                 let range = min(anchor, row) ... max(anchor, row)
-                isApplyingSelection = true
+                // Do not set `isApplyingSelection`: `selectRowIndexes` must notify
+                // `tableViewSelectionDidChange` so the SwiftUI binding stays in sync.
                 tableView.selectRowIndexes(IndexSet(integersIn: range), byExtendingSelection: false)
-                isApplyingSelection = false
                 return false
             }
 
