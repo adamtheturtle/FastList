@@ -33,10 +33,8 @@ extension FastList {
         /// scrolls once rather than on every update. Cleared when the target goes back to `nil`,
         /// so re-setting the same id later scrolls again.
         private var lastScrolledToID: Item.ID?
-        /// De-dupes ``onVisibleRowRangeChange`` callbacks.
-        private var lastVisibleRowRange: ClosedRange<Int>?
-        /// The highest row index included in the last prefetch callback.
-        private var lastPrefetchedThroughRow = -1
+        /// Anchor for shift-click range selection.
+        private var selectionAnchorRow: Int?
 
         init(_ parent: FastList) {
             self.parent = parent
@@ -109,13 +107,7 @@ extension FastList {
                 guard let cell, let tableView else { return }
                 tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: cell.rowIndex))
             }
-            cell.wantsLayer = true
             cell.host(parent.rowContent(items[row]))
-            if parent.configuration.alternatingRowBackgrounds, row.isMultiple(of: 2) {
-                cell.layer?.backgroundColor = NSColor.alternatingContentBackgroundColors[1].cgColor
-            } else {
-                cell.layer?.backgroundColor = nil
-            }
             return cell
         }
 
@@ -154,8 +146,23 @@ extension FastList {
 
         /// Backstop for the programmatic selection paths that bypass
         /// ``selectionShouldChange(in:)``, so a non-selectable list stays non-selectable.
-        public func tableView(_: NSTableView, shouldSelectRow _: Int) -> Bool {
-            parent.configuration.selectionMode != .none
+        /// Also implements shift-click range selection on macOS.
+        public func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+            guard parent.configuration.selectionMode != .none else { return false }
+            guard items.indices.contains(row) else { return false }
+
+            if NSEvent.modifierFlags.contains(.shift), let anchor = selectionAnchorRow, anchor >= 0 {
+                let range = min(anchor, row) ... max(anchor, row)
+                isApplyingSelection = true
+                tableView.selectRowIndexes(IndexSet(integersIn: range), byExtendingSelection: false)
+                isApplyingSelection = false
+                return false
+            }
+
+            if !NSEvent.modifierFlags.contains(.command) {
+                selectionAnchorRow = row
+            }
+            return true
         }
 
         /// Push the binding's selection into the table without echoing it back.
@@ -249,14 +256,6 @@ extension FastList {
             let visible = tableView.rows(in: tableView.visibleRect)
             guard visible.length > 0 else { return }
 
-            if let onVisibleRowRangeChange = parent.configuration.onVisibleRowRangeChange {
-                let range = visible.location ... (visible.location + visible.length - 1)
-                if range != lastVisibleRowRange {
-                    lastVisibleRowRange = range
-                    onVisibleRowRangeChange(range)
-                }
-            }
-
             if let onTopRowChange = parent.configuration.onTopRowChange,
                items.indices.contains(visible.location) {
                 let topID = items[visible.location].id
@@ -274,22 +273,6 @@ extension FastList {
             } else {
                 reachEndGate.reset()
             }
-
-            prefetchIfNeeded(lastVisibleRow: NSMaxRange(visible) - 1)
-        }
-
-        private func prefetchIfNeeded(lastVisibleRow: Int) {
-            guard let onPrefetchRows = parent.configuration.onPrefetchRows,
-                  items.indices.contains(lastVisibleRow) else { return }
-
-            let target = min(lastVisibleRow + parent.configuration.prefetchRowCount, items.count - 1)
-            guard target > lastPrefetchedThroughRow else { return }
-
-            let start = lastPrefetchedThroughRow + 1
-            guard start <= target else { return }
-
-            lastPrefetchedThroughRow = target
-            onPrefetchRows(Array(items[start ... target]))
         }
 
         /// Reports a changed top-row identity. Keeping the last non-empty ID lets a later
