@@ -169,6 +169,9 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
 
     /// Adds swipe actions to one edge of every row, rendered as `NSTableViewRowAction`s.
     ///
+    /// Any number of actions may be returned per edge (including more than two). On
+    /// iOS, `allowsFullSwipe` controls whether a full-edge swipe performs the first action.
+    ///
     /// ```swift
     /// .swipeActions(edge: .leading) { row in
     ///     [SwipeAction(title: "Flag", tint: .yellow, systemImage: "flag.fill") { flag(row) }]
@@ -184,9 +187,11 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     ///     should have no swipe on this edge.
     public func swipeActions(
         edge: HorizontalEdge = .trailing,
+        allowsFullSwipe: Bool = true,
         _ actions: @escaping (Item) -> [SwipeAction]
     ) -> Self {
         copy {
+            $0.allowsFullSwipe = allowsFullSwipe
             switch edge {
             case .leading: $0.leadingSwipe = actions
             case .trailing: $0.trailingSwipe = actions
@@ -918,8 +923,12 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             let base = rowWithTapGestures(for: item, positioned: positioned, isSelected: isSelected)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
                 .listRowBackground(rowBackground(isSelected: isSelected, index: index))
-                .swipeActions(edge: .leading) { swipeButtons(leading) }
-                .swipeActions(edge: .trailing) { swipeButtons(trailing) }
+                .swipeActions(edge: .leading, allowsFullSwipe: configuration.allowsFullSwipe) {
+                    swipeButtons(leading)
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: configuration.allowsFullSwipe) {
+                    swipeButtons(trailing)
+                }
             #endif
 
             // Only attach a context menu when one is configured, so unconfigured rows
