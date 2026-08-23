@@ -19,7 +19,6 @@ private final class CountingTableView: NSTableView {
     }
 }
 
-
 private final class PartialReloadTableView: NSTableView {
     var partialReloadRowIndexes: [IndexSet] = []
 
@@ -865,7 +864,6 @@ private extension NSEvent {
         #expect(selected == nil)
     }
 }
-
 
 @MainActor
 @Suite struct FastListHoverTrackingTests {
