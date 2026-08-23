@@ -40,6 +40,8 @@ extension FastList {
         /// De-dupes ``onVisibleRowRangeChange`` callbacks.
         private var lastVisibleRowRange: ClosedRange<Int>?
         private var hoveredRow = -1
+        /// The highest row index included in the last prefetch callback.
+        private var lastPrefetchedThroughRow = -1
         /// Anchor for shift-click range selection.
         private var selectionAnchorRow: Int?
 
@@ -85,9 +87,10 @@ extension FastList {
             let nextRowContentID = parent.configuration.rowContentID
             let nextAccessibilityIncludesRowPosition = parent.configuration.accessibilityIncludesRowPosition
             let anchorID = selectionAnchorRow.flatMap { items.indices.contains($0) ? items[$0].id : nil }
+            let itemsChanged = newItems.map(\.id) != items.map(\.id)
             let changed = force
                 || parent.containedDuplicateIDs
-                || newItems.map(\.id) != items.map(\.id)
+                || itemsChanged
                 || nextRowContentID != rowContentID
                 || nextAccessibilityIncludesRowPosition != accessibilityIncludesRowPosition
             items = newItems
@@ -102,10 +105,12 @@ extension FastList {
                 hoveredRow = -1
             }
             selectionAnchorRow = anchorID.flatMap { indexByID[$0] }
+            if itemsChanged {
+                lastPrefetchedThroughRow = -1
+            }
             let reconciledSelection = reconciledFastListSelection(parent.selection, items: newItems)
             if reconciledSelection != parent.selection { parent.selection = reconciledSelection }
             if newItems.isEmpty { reportTopRow(nil) }
-            if changed { lastPrefetchedThroughRow = -1 }
             if newItems.isEmpty { lastVisibleRowRange = nil }
             guard changed else { return }
 
