@@ -4,10 +4,16 @@
 //
 
 /// Shared paging de-duplication for the AppKit and native SwiftUI backends.
-struct FastListReachEndGate {
+///
+/// Exposed under `@_spi(FastListTesting)` so host apps and package tests can assert
+/// once-per-count paging without depending on private module details.
+@_spi(FastListTesting)
+public struct FastListReachEndGate {
     private var firedAtCount: Int?
 
-    mutating func consume(lastVisibleRow: Int, itemCount: Int, threshold: Int) -> Bool {
+    public init() {}
+
+    public mutating func consume(lastVisibleRow: Int, itemCount: Int, threshold: Int) -> Bool {
         guard (0 ..< itemCount).contains(lastVisibleRow),
               lastVisibleRow >= itemCount - 1 - threshold,
               firedAtCount != itemCount else { return false }
@@ -16,7 +22,7 @@ struct FastListReachEndGate {
         return true
     }
 
-    mutating func reset() {
+    public mutating func reset() {
         firedAtCount = nil
     }
 }
