@@ -152,6 +152,17 @@ extension FastList {
             tableView.reloadData(forRowIndexes: rowsToRefresh, columnIndexes: IndexSet(integer: 0))
         }
 
+        /// Recomputes hover from the current pointer location so scrolling under a stationary
+        /// cursor still highlights the row now under the mouse.
+        func refreshHoveredRowFromPointer(in tableView: NSTableView) {
+            guard parent.configuration.highlightsRowsOnHover,
+                  let window = tableView.window else { return }
+
+            let point = tableView.convert(window.mouseLocationOutsideOfEventStream, from: nil)
+            let row = tableView.bounds.contains(point) ? tableView.row(at: point) : -1
+            updateHoveredRow(row, in: tableView)
+        }
+
         public func tableView(_: NSTableView, pasteboardWriterForRow row: Int) -> (any NSPasteboardWriting)? {
             guard items.indices.contains(row) else { return nil }
 
@@ -335,6 +346,7 @@ extension FastList {
             }
 
             prefetchIfNeeded(lastVisibleRow: NSMaxRange(visible) - 1)
+            refreshHoveredRowFromPointer(in: tableView)
         }
 
         private func prefetchIfNeeded(lastVisibleRow: Int) {
