@@ -7,6 +7,9 @@
 //  and select - the whole point of the package.
 //
 
+#if os(macOS)
+import AppKit
+#endif
 import FastList
 import SwiftUI
 
@@ -67,9 +70,20 @@ private struct ContentView: View {
                 [
                     .button(title: contact.isFlagged ? "Unflag" : "Flag") { toggleFlag(contact) },
                     .separator,
-                    .button(title: "Delete") { delete(contact) }
+                    .button(title: "Delete \(selection.count)", isEnabled: !selection.isEmpty) { deleteSelected(selection) }
                 ]
             }
+            #if os(macOS)
+            .onRowDrag { contact in
+                let item = NSPasteboardItem()
+                item.setString("contact:\(contact.id)", forType: .string)
+                return item
+            }
+            .onDragSession(
+                began: { _ in lastOpened = "Dragging \(selection.count) row(s)…" },
+                ended: { lastOpened = "-" }
+            )
+            #endif
             .onTopRowChange { scrollAnchor = $0 }
             .scrollToRow(id: restoreAnchor) { restoreAnchor = nil }
             .onReachEnd(threshold: 20) { loadNextPage() }
@@ -136,6 +150,11 @@ private struct ContentView: View {
     private func delete(_ contact: Contact) {
         contacts.removeAll { $0.id == contact.id }
         selection.remove(contact.id)
+    }
+
+    private func deleteSelected(_ ids: Set<Int>) {
+        contacts.removeAll { ids.contains($0.id) }
+        selection.subtract(ids)
     }
 
     private func loadNextPage() {
