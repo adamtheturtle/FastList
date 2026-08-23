@@ -272,6 +272,11 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.rowContentID = AnyHashable(id) }
     }
 
+    /// Draws alternating row backgrounds on every second row.
+    public func alternatingRowBackgrounds(_ enabled: Bool = true) -> Self {
+        copy { $0.alternatingRowBackgrounds = enabled }
+    }
+
     /// Fires when the last visible row comes within `threshold` rows of the end of the data
     /// as a user scroll settles - the trigger for load-more / infinite-scroll paging.
     ///
@@ -503,7 +508,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             ScrollViewReader { proxy in
                 List {
                     ForEach(Array(items.enumerated()), id: \.element.id) { indexedItem in
-                        row(for: indexedItem.element)
+                        row(for: indexedItem.element, at: indexedItem.offset)
                             .id(indexedItem.element.id)
                             .background {
                                 GeometryReader { geometry in
@@ -683,6 +688,17 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         /// leading/trailing edges (so it can't bleed behind the split-view sidebar) and
         /// inside the row (so it can't clip the row's content).
         @ViewBuilder
+        private func rowBackground(isSelected: Bool, index: Int) -> some View {
+            if isSelected {
+                selectionBackground(isSelected: true)
+            } else if configuration.alternatingRowBackgrounds, index.isMultiple(of: 2) {
+                Color.primary.opacity(0.04)
+            } else {
+                Color.clear
+            }
+        }
+
+        @ViewBuilder
         private func selectionBackground(isSelected: Bool) -> some View {
             if isSelected {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -695,7 +711,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         }
 
         @ViewBuilder
-        private func row(for item: Item) -> some View {
+        private func row(for item: Item, at index: Int) -> some View {
             let leading = configuration.leadingSwipe?(item) ?? []
             let trailing = configuration.trailingSwipe?(item) ?? []
             let menu = configuration.contextMenu?(item, selection) ?? []
@@ -726,7 +742,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                     handleNativeRowTap(item)
                 }
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
-                .listRowBackground(selectionBackground(isSelected: isSelected))
+                .listRowBackground(rowBackground(isSelected: isSelected, index: index))
                 .swipeActions(edge: .leading) { swipeButtons(leading) }
                 .swipeActions(edge: .trailing) { swipeButtons(trailing) }
             #endif
