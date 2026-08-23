@@ -62,15 +62,14 @@ private struct ContentView: View {
 
     @ViewBuilder
     private var listWithPaging: some View {
-        let list = configuredList
         if query.isEmpty {
-            list.onReachEnd(threshold: 20) { loadNextPage() }
+            configuredList.onReachEnd(threshold: 20) { loadNextPage() }
         } else {
-            list
+            configuredList
         }
     }
 
-    private var configuredList: some View {
+    private var configuredList: FastList<Contact> {
         FastList(visible, selection: $selection) { contact in
             row(contact)
                 .allowsHitTesting(false)
