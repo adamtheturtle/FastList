@@ -45,3 +45,10 @@ an app design system.
 ### Invalidating row content
 
 - ``FastList/FastList/rowContentID(_:)``
+
+### Guides
+
+- <doc:PlatformFeatureMatrix>
+- <doc:HitTesting>
+- <doc:FilterPerformance>
+- <doc:ThreadingAndSIL>
