@@ -104,7 +104,13 @@ extension FastList {
             }
             selectionAnchorRow = anchorID.flatMap { indexByID[$0] }
             if itemsChanged {
-                lastPrefetchedThroughRow = -1
+                let oldIDs = items.map(\.id)
+                let newIDs = newItems.map(\.id)
+                let isPureAppend = newIDs.count > oldIDs.count
+                    && Array(newIDs.prefix(oldIDs.count)) == oldIDs
+                if !isPureAppend {
+                    lastPrefetchedThroughRow = -1
+                }
             }
             let reconciledSelection = reconciledFastListSelection(parent.selection, items: newItems)
             if reconciledSelection != parent.selection { parent.selection = reconciledSelection }
