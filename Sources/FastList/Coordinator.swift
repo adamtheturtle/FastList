@@ -17,6 +17,8 @@ extension FastList {
         private var items: [Item] = []
         private var indexByID: [Item.ID: Int] = [:]
         private var rowContentID: AnyHashable?
+        /// Last applied accessibility row-position flag, so toggling the modifier reloads cells.
+        private var accessibilityIncludesRowPosition = false
         /// Guards against the selection binding and the table's selection ping-ponging.
         private var isApplyingSelection = false
         /// Native reloads can synchronously move the viewport while AppKit is still reconciling
@@ -60,12 +62,15 @@ extension FastList {
         func reloadIfNeeded(_ newItems: [Item], force: Bool) {
             let newItems = deduplicatedFastListItems(newItems)
             let nextRowContentID = parent.configuration.rowContentID
+            let nextAccessibilityIncludesRowPosition = parent.configuration.accessibilityIncludesRowPosition
             let changed = force
                 || parent.containedDuplicateIDs
                 || newItems.map(\.id) != items.map(\.id)
                 || nextRowContentID != rowContentID
+                || nextAccessibilityIncludesRowPosition != accessibilityIncludesRowPosition
             items = newItems
             rowContentID = nextRowContentID
+            accessibilityIncludesRowPosition = nextAccessibilityIncludesRowPosition
             indexByID = Dictionary(
                 newItems.enumerated().map { ($1.id, $0) },
                 uniquingKeysWith: { first, _ in first }

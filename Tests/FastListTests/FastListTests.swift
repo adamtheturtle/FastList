@@ -95,6 +95,25 @@ private final class SnapshotReloadTableView: NSTableView {
         #expect(table.reloadCount == 2)
     }
 
+    @Test func accessibilityRowPositionToggleForcesReload() {
+        let table = CountingTableView()
+        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
+
+        var list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+        let coordinator = list.makeCoordinator()
+        coordinator.tableView = table
+        coordinator.reloadIfNeeded([Row(id: 1, name: "a")], force: true)
+        #expect(table.reloadCount == 1)
+
+        list = list.accessibilityRowPosition(true)
+        coordinator.parent = list
+        coordinator.reloadIfNeeded([Row(id: 1, name: "a")], force: false)
+        #expect(table.reloadCount == 2)
+
+        coordinator.reloadIfNeeded([Row(id: 1, name: "a")], force: false)
+        #expect(table.reloadCount == 2)
+    }
+
     @Test func duplicateIDsKeepTheFirstIndex() {
         let coordinator = makeCoordinator([])
         coordinator.reloadIfNeeded([Row(id: 1, name: "first"), Row(id: 1, name: "dupe")], force: true)
