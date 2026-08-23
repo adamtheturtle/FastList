@@ -886,6 +886,21 @@ private extension NSEvent {
         #expect(rowActions.map(\.title) == ["One", "Two", "Three"])
     }
 
+    @Test func onMoveStoresHandlerAndEnablesLocalDrag() {
+        let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+        #expect(base.configuration.onMoveRows == nil)
+
+        let configured = base.onMove { _, _ in }
+        #expect(configured.configuration.onMoveRows != nil)
+
+        let table = DragRegistrationTableView()
+        let coordinator = configured.makeCoordinator()
+        coordinator.updateDragRegistration(on: table)
+        #expect(table.localMask.contains(.move))
+    }
+
+    }
+
     @Test func swipeEdgeRoutesToTheRightSlot() {
         let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
         let leading = base.swipeActions(edge: .leading) { _ in [SwipeAction(title: "Flag") {}] }

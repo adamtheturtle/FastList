@@ -353,6 +353,17 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.listStyle = style }
     }
 
+
+    /// Enables interactive row reordering. The closure receives the source indexes and
+    /// destination offset, matching SwiftUI's `onMove` semantics. The caller must mutate
+    /// `items` to match; `FastList` does not own the array.
+    ///
+    /// On iOS this uses `ForEach.onMove`. On macOS it accepts local row drags as a reorder
+    /// drop onto the destination index.
+    public func onMove(_ action: @escaping (IndexSet, Int) -> Void) -> Self {
+        copy { $0.onMoveRows = action }
+    }
+
     /// Draws alternating row backgrounds on every second row.
     public func alternatingRowBackgrounds(_ enabled: Bool = true) -> Self {
         copy { $0.alternatingRowBackgrounds = enabled }
@@ -593,6 +604,20 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
 #else
     // MARK: View (iOS / iPadOS)
 
+    /// Applies SwiftUI `onMove` when row reordering is configured.
+    private struct NativeMoveModifier: ViewModifier {
+        let onMove: ((IndexSet, Int) -> Void)?
+
+        @ViewBuilder
+        func body(content: Content) -> some View {
+            if let onMove {
+                content.onMove(perform: onMove)
+            } else {
+                content
+            }
+        }
+    }
+
     /// Maps ``FastListStyle`` onto SwiftUI `ListStyle` for the native iOS backend.
     private struct NativeListStyleModifier: ViewModifier {
         let style: FastListStyle
@@ -753,6 +778,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                 ForEach(Array(items.enumerated()), id: \.element.id) { indexedItem in
                     nativeInstrumentedRow(for: indexedItem.element, at: indexedItem.offset)
                 }
+                .modifier(NativeMoveModifier(onMove: configuration.onMoveRows))
             }
         }
 
