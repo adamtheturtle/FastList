@@ -310,8 +310,9 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         // Returns whether the press was consumed; `false` lets the table fall through to
         // `super.keyDown(with:)` so the responder chain still sees Return.
         table.onReturn = { [weak coordinator = context.coordinator] in coordinator?.handleReturn() ?? false }
+        table.onSelectAll = { [weak coordinator = context.coordinator] in coordinator?.handleSelectAll() ?? false }
 
-        // Drive the right-click menu through the table's own `menu` property (populated
+        // Drive the right-click menu
         // lazily in `menuNeedsUpdate`) rather than overriding `menu(for:)`, so AppKit's
         // native contextual-menu machinery runs and draws the focus-ring outline around a
         // right-clicked row that isn't selected. Only install it when a menu is configured,

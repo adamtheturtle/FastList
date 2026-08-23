@@ -175,6 +175,13 @@ extension FastList {
             return true
         }
 
+        @discardableResult
+        func handleSelectAll() -> Bool {
+            guard let tableView, tableView.allowsMultipleSelection, !items.isEmpty else { return false }
+            applySelection(Set(items.map(\.id)))
+            return true
+        }
+
         // MARK: Scrolling to a row
 
         /// Scrolls to ``FastListConfiguration/scrollToID`` if that target hasn't been honored
