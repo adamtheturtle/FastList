@@ -1,3 +1,4 @@
+#if os(macOS)
 import AppKit
 import SwiftUI
 import Testing
@@ -74,3 +75,4 @@ struct Benchmark {
         return String(format: "%.0f ns", nanos)
     }
 }
+#endif
