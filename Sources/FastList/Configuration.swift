@@ -129,6 +129,8 @@ struct FastListConfiguration<Item: Identifiable> {
     #if os(macOS)
         var pasteboardItem: ((Item) -> NSPasteboardItem?)?
         var onDragSessionBegan: ((NSDraggingSession) -> Void)?
+        var validateRowDrop: ((any NSDraggingInfo, Int) -> NSDragOperation)?
+        var onRowDrop: ((any NSDraggingInfo, Int) -> Bool)?
     #endif
     #if os(iOS)
         /// Drag payload for the native SwiftUI backend. `nil` disables drag for that row.
