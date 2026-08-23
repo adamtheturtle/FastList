@@ -93,6 +93,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         @State private var lastPrefetchedThroughRow = -1
         @State private var lastNativeVisibleRange: ClosedRange<Int>?
         @State private var nativeListHeight: CGFloat = 0
+        @State private var lastNativeVisibleBounds: [Int: NativeVisibleRowBounds] = [:]
     #endif
 
     // MARK: Initializers
@@ -287,7 +288,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     public func hoverHighlight(_ enabled: Bool = true) -> Self {
         copy { $0.highlightsRowsOnHover = enabled }
     }
-
 
     /// Draws alternating row backgrounds on every second row.
     public func alternatingRowBackgrounds(_ enabled: Bool = true) -> Self {
@@ -603,11 +603,18 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                 .background {
                     GeometryReader { geometry in
                         Color.clear.onAppear { nativeListHeight = geometry.size.height }
-                            .onChange(of: geometry.size.height) { _, height in nativeListHeight = height }
+                            .onChange(of: geometry.size.height) { _, height in
+                                nativeListHeight = height
+                                if height > 0 {
+                                    reportNativeTopRow(from: lastNativeVisibleBounds)
+                                    reportNativeVisibleRange(from: lastNativeVisibleBounds)
+                                }
+                            }
                     }
                 }
                 .coordinateSpace(name: "fastListNative")
                 .onPreferenceChange(NativeVisibleRowBoundsKey.self) { bounds in
+                    lastNativeVisibleBounds = bounds
                     reportNativeTopRow(from: bounds)
                     reportNativeVisibleRange(from: bounds)
                 }
