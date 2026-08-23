@@ -84,13 +84,17 @@ extension FastList {
             let newItems = deduplicatedFastListItems(newItems)
             let nextRowContentID = parent.configuration.rowContentID
             let nextAccessibilityIncludesRowPosition = parent.configuration.accessibilityIncludesRowPosition
+            let previousIDs = items.map(\.id)
+            let previousRowContentID = rowContentID
+            let previousAccessibilityIncludesRowPosition = accessibilityIncludesRowPosition
             let anchorID = selectionAnchorRow.flatMap { items.indices.contains($0) ? items[$0].id : nil }
-            let itemsChanged = newItems.map(\.id) != items.map(\.id)
+            let itemsChanged = newItems.map(\.id) != previousIDs
+            let contentTokenChanged = nextRowContentID != previousRowContentID
+                || nextAccessibilityIncludesRowPosition != previousAccessibilityIncludesRowPosition
             let changed = force
                 || parent.containedDuplicateIDs
                 || itemsChanged
-                || nextRowContentID != rowContentID
-                || nextAccessibilityIncludesRowPosition != accessibilityIncludesRowPosition
+                || contentTokenChanged
             items = newItems
             rowContentID = nextRowContentID
             accessibilityIncludesRowPosition = nextAccessibilityIncludesRowPosition
@@ -123,8 +127,12 @@ extension FastList {
             // Keep the binding isolated from that transient empty state until the live IDs
             // have been restored below.
             isApplyingSelection = true
-            tableView?.reloadData()
-            // reloadData drops the selection; restore it from the binding.
+            applySnapshotToTable(
+                oldIDs: previousIDs,
+                newIDs: newItems.map(\.id),
+                forceFullReload: force || parent.containedDuplicateIDs || contentTokenChanged
+            )
+            // reloadData / animated updates can drop selection; restore it from the binding.
             applySelection(reconciledSelection)
             isApplyingSelection = false
             isApplyingSnapshot = false
@@ -132,6 +140,33 @@ extension FastList {
             // Reconcile once from the settled native viewport. Any synchronous notifications
             // emitted by reloadData were deliberately ignored above.
             scrollPositionChanged()
+        }
+
+        /// Applies an incremental animated insert/delete when only identities were added or
+        /// removed in-order; otherwise falls back to `reloadData`.
+        func applySnapshotToTable(
+            oldIDs: [Item.ID],
+            newIDs: [Item.ID],
+            forceFullReload: Bool
+        ) {
+            guard let tableView else { return }
+
+            if !forceFullReload {
+                let diff = FastListAnimatedDiff.difference(from: oldIDs, to: newIDs)
+                if diff.supportsIncrementalUpdate {
+                    tableView.beginUpdates()
+                    if !diff.deletions.isEmpty {
+                        tableView.removeRows(at: diff.deletions, withAnimation: .effectFade)
+                    }
+                    if !diff.insertions.isEmpty {
+                        tableView.insertRows(at: diff.insertions, withAnimation: .effectFade)
+                    }
+                    tableView.endUpdates()
+                    return
+                }
+            }
+
+            tableView.reloadData()
         }
 
         func index(of id: Item.ID) -> Int? {
