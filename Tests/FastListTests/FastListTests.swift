@@ -1,9 +1,9 @@
-import AppKit
 import SwiftUI
 import Testing
 @testable import FastList
 
 #if os(macOS)
+import AppKit
 
 private struct Row: Identifiable, Equatable {
     let id: Int
