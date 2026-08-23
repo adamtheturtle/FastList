@@ -91,6 +91,8 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         /// Honors ``scrollToRow(id:then:)`` once until the target is cleared, matching macOS.
         @State private var lastHonoredScrollToID: Item.ID?
         @State private var lastPrefetchedThroughRow = -1
+        @State private var lastNativeVisibleRange: ClosedRange<Int>?
+        @State private var nativeListHeight: CGFloat = 0
     #endif
 
     // MARK: Initializers
@@ -367,6 +369,11 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         }
     }
 
+    /// Reports the inclusive range of row indices currently visible in the viewport.
+    public func onVisibleRowRangeChange(_ action: @escaping (ClosedRange<Int>) -> Void) -> Self {
+        copy { $0.onVisibleRowRangeChange = action }
+    }
+
     private func copy(_ mutate: (inout FastListConfiguration<Item>) -> Void) -> Self {
         var copy = self
         mutate(&copy.configuration)
@@ -486,6 +493,23 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
 #else
     // MARK: View (iOS / iPadOS)
 
+    /// Vertical bounds of each visible row in the list coordinate space.
+    private struct NativeVisibleRowBounds: Equatable {
+        var minY: CGFloat
+        var maxY: CGFloat
+    }
+
+    private enum NativeVisibleRowBoundsKey: PreferenceKey {
+        static var defaultValue: [Int: NativeVisibleRowBounds] { [:] }
+
+        static func reduce(
+            value: inout [Int: NativeVisibleRowBounds],
+            nextValue: () -> [Int: NativeVisibleRowBounds]
+        ) {
+            value.merge(nextValue(), uniquingKeysWith: { $1 })
+        }
+    }
+
     /// Vertical origin of each visible row in the list coordinate space. Used to pick the
     /// topmost on-screen row for ``onTopRowChange``.
     private enum NativeVisibleRowMinYKey: PreferenceKey {
@@ -539,12 +563,21 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                             .id(indexedItem.element.id)
                             .background {
                                 GeometryReader { geometry in
-                                    Color.clear.preference(
-                                        key: NativeVisibleRowMinYKey.self,
-                                        value: [
-                                            indexedItem.offset: geometry.frame(in: .named("fastListNative")).minY
-                                        ]
-                                    )
+                                    let frame = geometry.frame(in: .named("fastListNative"))
+                                    Color.clear
+                                        .preference(
+                                            key: NativeVisibleRowMinYKey.self,
+                                            value: [indexedItem.offset: frame.minY]
+                                        )
+                                        .preference(
+                                            key: NativeVisibleRowBoundsKey.self,
+                                            value: [
+                                                indexedItem.offset: NativeVisibleRowBounds(
+                                                    minY: frame.minY,
+                                                    maxY: frame.maxY
+                                                )
+                                            ]
+                                        )
                                 }
                             }
                             .onAppear {
@@ -567,8 +600,15 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                 // sidebar, so we drive selection ourselves and draw our own inset,
                 // rounded-rectangle highlight instead - no bleed, no clipping, no system emphasis.
                 .listStyle(.plain)
+                .background {
+                    GeometryReader { geometry in
+                        Color.clear.onAppear { nativeListHeight = geometry.size.height }
+                            .onChange(of: geometry.size.height) { _, height in nativeListHeight = height }
+                    }
+                }
                 .coordinateSpace(name: "fastListNative")
                 .onPreferenceChange(NativeVisibleRowMinYKey.self, perform: reportNativeTopRow(from:))
+                .onPreferenceChange(NativeVisibleRowBoundsKey.self, perform: reportNativeVisibleRange(from:))
                 .onAppear {
                     reconcileSelection()
                     honorNativeScrollToIfNeeded(proxy: proxy)
@@ -674,6 +714,22 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             guard id != lastNativeTopRowID else { return }
             lastNativeTopRowID = id
             configuration.onTopRowChange?(id)
+        }
+
+        private func reportNativeVisibleRange(from bounds: [Int: NativeVisibleRowBounds]) {
+            guard configuration.onVisibleRowRangeChange != nil else { return }
+            guard !items.isEmpty else { return }
+
+            let listHeight = nativeListHeight > 0 ? nativeListHeight : .greatestFiniteMagnitude
+            let visible = bounds.filter { _, frame in
+                frame.maxY > 0 && frame.minY < listHeight
+            }.map(\.key).sorted()
+            guard let lower = visible.first, let upper = visible.last else { return }
+
+            let range = lower ... upper
+            guard range != lastNativeVisibleRange else { return }
+            lastNativeVisibleRange = range
+            configuration.onVisibleRowRangeChange?(range)
         }
 
         private func honorNativeScrollToIfNeeded(proxy: ScrollViewProxy) {

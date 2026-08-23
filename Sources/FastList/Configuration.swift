@@ -130,4 +130,6 @@ struct FastListConfiguration<Item: Identifiable> {
     var onPrefetchRows: (([Item]) -> Void)?
     /// How many rows beyond the last visible index to include in a prefetch callback.
     var prefetchRowCount = 10
+    /// Reports the inclusive row-index range currently intersecting the viewport.
+    var onVisibleRowRangeChange: ((ClosedRange<Int>) -> Void)?
 }
