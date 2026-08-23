@@ -78,6 +78,9 @@ func reconciledFastListSelection<Item: Identifiable>(
 public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// The rows to show, already filtered and sorted by the caller.
     let items: [Item]
+    /// Optional sectioned layout. When non-nil, section headers are rendered and `items`
+    /// is the flattened concatenation of every section's items (without header rows).
+    let sections: [FastListSection<Item>]?
     /// Duplicate input is exceptional and must refresh native cells on every update: the
     /// first-winning value can change even when its deduplicated ID sequence does not.
     let containedDuplicateIDs: Bool
@@ -113,6 +116,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     ) {
         let deduplicatedItems = deduplicatedFastListItems(items)
         self.items = deduplicatedItems
+        sections = nil
         containedDuplicateIDs = deduplicatedItems.count != items.count
         _selection = selection
         rowContent = { AnyView(row($0)) }
@@ -153,6 +157,31 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     ) {
         self.init(items, selection: .constant([]), row: row)
         configuration.selectionMode = .none
+    }
+
+    /// Creates a sectioned list with a multiple-selection binding.
+    ///
+    /// Section headers appear as SwiftUI `Section` headers on iOS / iPadOS. Selection and
+    /// modifiers address the flattened item ids. On macOS the items are shown flattened
+    /// (section headers use the same flat table until group-row rendering lands).
+    public init(
+        sections: [FastListSection<Item>],
+        selection: Binding<Set<Item.ID>>,
+        @ViewBuilder row: @escaping (Item) -> some View
+    ) {
+        let flat = sections.flatMap(\.items)
+        let deduplicatedItems = deduplicatedFastListItems(flat)
+        self.items = deduplicatedItems
+        self.sections = sections.map { section in
+            FastListSection(
+                id: section.id,
+                title: section.title,
+                items: deduplicatedFastListItems(section.items)
+            )
+        }
+        containedDuplicateIDs = deduplicatedItems.count != flat.count
+        _selection = selection
+        rowContent = { AnyView(row($0)) }
     }
 
     // MARK: Modifiers
@@ -643,38 +672,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             // keeps normal, readable text and no ring.
             ScrollViewReader { proxy in
                 List {
-                    ForEach(Array(items.enumerated()), id: \.element.id) { indexedItem in
-                        row(for: indexedItem.element, at: indexedItem.offset)
-                            .id(indexedItem.element.id)
-                            .background {
-                                GeometryReader { geometry in
-                                    let frame = geometry.frame(in: .named("fastListNative"))
-                                    Color.clear.preference(
-                                        key: NativeVisibleRowBoundsKey.self,
-                                        value: [
-                                            indexedItem.offset: NativeVisibleRowBounds(
-                                                minY: frame.minY,
-                                                maxY: frame.maxY
-                                            )
-                                        ]
-                                    )
-                                }
-                            }
-                            .onAppear {
-                                consumeNativeReachEnd(lastVisibleRow: indexedItem.offset)
-                                prefetchNativeRowsIfNeeded(lastVisibleRow: indexedItem.offset)
-                            }
-                            .onChange(of: items.count) { oldCount, newCount in
-                                if newCount < oldCount {
-                                    lastPrefetchedThroughRow = -1
-                                }
-                                // A page no larger than the threshold can leave an already-visible
-                                // row inside the new threshold zone. Re-evaluate visible rows when
-                                // the count changes instead of waiting for another scroll gesture.
-                                consumeNativeReachEnd(lastVisibleRow: indexedItem.offset)
-                                prefetchNativeRowsIfNeeded(lastVisibleRow: indexedItem.offset)
-                            }
-                    }
+                    nativeSectionedRows
                 }
                 // `.plain`, with a custom selection background (see `selectionBackground`).
                 // The earlier `.sidebar` style insets selection nicely when the list IS the
@@ -734,6 +732,72 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                     announceNativeSelectionChange(count: newValue.count)
                 }
             }
+        }
+
+
+        @ViewBuilder
+        private var nativeSectionedRows: some View {
+            if let sections {
+                ForEach(Array(sections.enumerated()), id: \.element.id) { sectionIndex, section in
+                    Section {
+                        ForEach(Array(section.items.enumerated()), id: \.element.id) { itemOffset, item in
+                            let flatIndex = flatIndex(sectionIndex: sectionIndex, itemOffset: itemOffset, in: sections)
+                            nativeInstrumentedRow(for: item, at: flatIndex)
+                        }
+                    } header: {
+                        if let title = section.title {
+                            Text(title)
+                        }
+                    }
+                }
+            } else {
+                ForEach(Array(items.enumerated()), id: \.element.id) { indexedItem in
+                    nativeInstrumentedRow(for: indexedItem.element, at: indexedItem.offset)
+                }
+            }
+        }
+
+        private func flatIndex(
+            sectionIndex: Int,
+            itemOffset: Int,
+            in sections: [FastListSection<Item>]
+        ) -> Int {
+            let prior = sections.prefix(sectionIndex).reduce(0) { $0 + $1.items.count }
+            return prior + itemOffset
+        }
+
+        @ViewBuilder
+        private func nativeInstrumentedRow(for item: Item, at index: Int) -> some View {
+            row(for: item, at: index)
+                .id(item.id)
+                .background {
+                    GeometryReader { geometry in
+                        let frame = geometry.frame(in: .named("fastListNative"))
+                        Color.clear.preference(
+                            key: NativeVisibleRowBoundsKey.self,
+                            value: [
+                                index: NativeVisibleRowBounds(
+                                    minY: frame.minY,
+                                    maxY: frame.maxY
+                                )
+                            ]
+                        )
+                    }
+                }
+                .onAppear {
+                    consumeNativeReachEnd(lastVisibleRow: index)
+                    prefetchNativeRowsIfNeeded(lastVisibleRow: index)
+                }
+                .onChange(of: items.count) { oldCount, newCount in
+                    if newCount < oldCount {
+                        lastPrefetchedThroughRow = -1
+                    }
+                    // A page no larger than the threshold can leave an already-visible
+                    // row inside the new threshold zone. Re-evaluate visible rows when
+                    // the count changes instead of waiting for another scroll gesture.
+                    consumeNativeReachEnd(lastVisibleRow: index)
+                    prefetchNativeRowsIfNeeded(lastVisibleRow: index)
+                }
         }
 
         private func announceNativeSelectionChange(count: Int) {

@@ -974,3 +974,29 @@ private extension NSEvent {
     }
 }
 #endif
+
+@MainActor
+@Suite struct FastListSectionTests {
+    private struct Row: Identifiable, Equatable {
+        let id: Int
+        let name: String
+    }
+
+    @Test func sectionedInitFlattensItems() {
+        let sections = [
+            FastListSection("A", items: [Row(id: 1, name: "a1"), Row(id: 2, name: "a2")]),
+            FastListSection("B", items: [Row(id: 3, name: "b1")])
+        ]
+        let list = FastList(sections: sections, selection: .constant([])) { Text($0.name) }
+        #expect(list.items.map(\.id) == [1, 2, 3])
+        #expect(list.sections?.count == 2)
+        #expect(list.sections?[0].title == "A")
+        #expect(list.sections?[1].items.map(\.id) == [3])
+    }
+
+    @Test func flatInitLeavesSectionsNil() {
+        let list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+        #expect(list.sections == nil)
+    }
+}
+
