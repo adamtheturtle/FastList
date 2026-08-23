@@ -51,6 +51,20 @@ jobs:
           -derivedDataPath "$RUNNER_TEMP/FastList-iOS"
           CODE_SIGNING_ALLOWED=NO build
 
+  test-ios:
+    name: Test (iOS Simulator)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Test shared targets on iOS
+        run: >-
+          xcodebuild -scheme FastList
+          -destination 'platform=iOS Simulator,name=iPhone 16'
+          -derivedDataPath "$RUNNER_TEMP/FastList-iOS-Test"
+          CODE_SIGNING_ALLOWED=NO
+          test
+
   prose:
     name: Vale
     runs-on: ubuntu-latest

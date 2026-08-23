@@ -29,12 +29,15 @@ private struct Contact: Identifiable {
 }
 
 private struct ContentView: View {
-    @State private var contacts: [Contact] = (1...50_000).map {
-        Contact(id: $0, name: "Contact \($0)", email: "contact\($0)@example.com", isFlagged: false)
-    }
+    private static let pageSize = 500
+
+    @State private var contacts: [Contact] = (1...Self.pageSize).map(Self.makeContact)
+    @State private var nextID = Self.pageSize + 1
     @State private var selection: Set<Int> = []
     @State private var query = ""
     @State private var lastOpened = "-"
+    @State private var scrollAnchor: Int?
+    @State private var restoreAnchor: Int?
     /// `Contact.id` stays stable when its flag changes, so this token tells the recycled
     /// table cells that caller-owned row content changed.
     @State private var rowContentRevision = 0
@@ -67,6 +70,9 @@ private struct ContentView: View {
                     .button(title: "Delete") { delete(contact) }
                 ]
             }
+            .onTopRowChange { scrollAnchor = $0 }
+            .scrollToRow(id: restoreAnchor) { restoreAnchor = nil }
+            .onReachEnd(threshold: 20) { loadNextPage() }
             .rowContentID(rowContentRevision)
         }
     }
@@ -82,9 +88,19 @@ private struct ContentView: View {
             }
             .padding(8)
             .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-            Text("Selected: \(selection.count)  ·  Last opened: \(lastOpened)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack {
+                Text("Selected: \(selection.count)  ·  Last opened: \(lastOpened)")
+                Spacer()
+                if let scrollAnchor {
+                    Text("Top row: \(scrollAnchor)")
+                }
+                Button("Restore scroll") {
+                    restoreAnchor = scrollAnchor
+                }
+                .disabled(scrollAnchor == nil)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
         .padding()
     }
@@ -120,5 +136,18 @@ private struct ContentView: View {
     private func delete(_ contact: Contact) {
         contacts.removeAll { $0.id == contact.id }
         selection.remove(contact.id)
+    }
+
+    private func loadNextPage() {
+        // Skip paging while filtering: the visible slice is not the loaded corpus tail.
+        guard query.isEmpty else { return }
+
+        let page = (nextID ..< (nextID + Self.pageSize)).map(Self.makeContact)
+        contacts.append(contentsOf: page)
+        nextID += Self.pageSize
+    }
+
+    private static func makeContact(_ id: Int) -> Contact {
+        Contact(id: id, name: "Contact \(id)", email: "contact\(id)@example.com", isFlagged: false)
     }
 }
