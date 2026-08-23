@@ -502,6 +502,8 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         var maxY: CGFloat
     }
 
+    /// Vertical bounds of each visible row in the list coordinate space. Used to pick the
+    /// topmost on-screen row for ``onTopRowChange``.
     private enum NativeVisibleRowBoundsKey: PreferenceKey {
         static var defaultValue: [Int: NativeVisibleRowBounds] { [:] }
 
@@ -509,16 +511,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             value: inout [Int: NativeVisibleRowBounds],
             nextValue: () -> [Int: NativeVisibleRowBounds]
         ) {
-            value.merge(nextValue(), uniquingKeysWith: { $1 })
-        }
-    }
-
-    /// Vertical origin of each visible row in the list coordinate space. Used to pick the
-    /// topmost on-screen row for ``onTopRowChange``.
-    private enum NativeVisibleRowMinYKey: PreferenceKey {
-        static var defaultValue: [Int: CGFloat] { [:] }
-
-        static func reduce(value: inout [Int: CGFloat], nextValue: () -> [Int: CGFloat]) {
             value.merge(nextValue(), uniquingKeysWith: { $1 })
         }
     }
@@ -567,20 +559,15 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                             .background {
                                 GeometryReader { geometry in
                                     let frame = geometry.frame(in: .named("fastListNative"))
-                                    Color.clear
-                                        .preference(
-                                            key: NativeVisibleRowMinYKey.self,
-                                            value: [indexedItem.offset: frame.minY]
-                                        )
-                                        .preference(
-                                            key: NativeVisibleRowBoundsKey.self,
-                                            value: [
-                                                indexedItem.offset: NativeVisibleRowBounds(
-                                                    minY: frame.minY,
-                                                    maxY: frame.maxY
-                                                )
-                                            ]
-                                        )
+                                    Color.clear.preference(
+                                        key: NativeVisibleRowBoundsKey.self,
+                                        value: [
+                                            indexedItem.offset: NativeVisibleRowBounds(
+                                                minY: frame.minY,
+                                                maxY: frame.maxY
+                                            )
+                                        ]
+                                    )
                                 }
                             }
                             .onAppear {
@@ -610,8 +597,10 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                     }
                 }
                 .coordinateSpace(name: "fastListNative")
-                .onPreferenceChange(NativeVisibleRowMinYKey.self, perform: reportNativeTopRow(from:))
-                .onPreferenceChange(NativeVisibleRowBoundsKey.self, perform: reportNativeVisibleRange(from:))
+                .onPreferenceChange(NativeVisibleRowBoundsKey.self) { bounds in
+                    reportNativeTopRow(from: bounds)
+                    reportNativeVisibleRange(from: bounds)
+                }
                 .onAppear {
                     reconcileSelection()
                     honorNativeScrollToIfNeeded(proxy: proxy)
@@ -700,18 +689,19 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             if reconciled != selection { selection = reconciled }
         }
 
-        /// Picks the topmost row whose frame intersects the list viewport (minY closest to
-        /// zero without being far above the clip), matching AppKit's visible-rect top row.
-        private func reportNativeTopRow(from minYs: [Int: CGFloat]) {
+        /// Picks the topmost row whose frame intersects the list viewport, matching AppKit's
+        /// visible-rect top row.
+        private func reportNativeTopRow(from bounds: [Int: NativeVisibleRowBounds]) {
             guard configuration.onTopRowChange != nil else { return }
             guard !items.isEmpty else {
                 reportNativeTopRowID(nil)
                 return
             }
 
-            let topOffset = minYs
-                .filter { $0.value > -1 }
-                .min(by: { $0.value < $1.value })?
+            let listHeight = nativeListHeight > 0 ? nativeListHeight : .greatestFiniteMagnitude
+            let topOffset = bounds
+                .filter { $0.value.maxY > 0 && $0.value.minY < listHeight }
+                .min(by: { $0.value.minY < $1.value.minY })?
                 .key
             guard let topOffset, items.indices.contains(topOffset) else { return }
 
