@@ -79,8 +79,14 @@ extension FastList {
         func updateDragRegistration(on tableView: NSTableView) {
             let dragEnabled = parent.configuration.pasteboardItem != nil
             let reorderEnabled = parent.configuration.onMoveRows != nil
-            let localEnabled = dragEnabled || reorderEnabled
-            tableView.setDraggingSourceOperationMask(localEnabled ? [.copy, .generic, .move] : [], forLocal: true)
+            var localMask: NSDragOperation = []
+            if dragEnabled {
+                localMask.formUnion([.copy, .generic])
+            }
+            if reorderEnabled {
+                localMask.insert(.move)
+            }
+            tableView.setDraggingSourceOperationMask(localMask, forLocal: true)
             tableView.setDraggingSourceOperationMask(dragEnabled ? .copy : [], forLocal: false)
             if reorderEnabled {
                 tableView.registerForDraggedTypes([.string])
