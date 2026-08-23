@@ -120,4 +120,6 @@ struct FastListConfiguration<Item: Identifiable> {
     var rowContentID: AnyHashable?
     /// Shown instead of the list when `items` is empty.
     var emptyStateContent: (() -> AnyView)?
+    /// Reports the inclusive row-index range currently intersecting the viewport.
+    var onVisibleRowRangeChange: ((ClosedRange<Int>) -> Void)?
 }
