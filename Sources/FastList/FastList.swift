@@ -343,17 +343,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         }
     }
 
-    /// Shows `content` when the list has no rows instead of an empty table or list.
-    ///
-    /// ```swift
-    /// .emptyState {
-    ///     ContentUnavailableView("No results", systemImage: "magnifyingglass")
-    /// }
-    /// ```
-    public func emptyState<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> Self {
-        copy { $0.emptyStateContent = { AnyView(content()) } }
-    }
-
     /// Prefetches upcoming rows when the viewport nears rows that are not yet loaded.
     ///
     /// ```swift
@@ -367,6 +356,17 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             $0.prefetchRowCount = count
             $0.onPrefetchRows = perform
         }
+    }
+
+    /// Shows `content` when the list has no rows instead of an empty table or list.
+    ///
+    /// ```swift
+    /// .emptyState {
+    ///     ContentUnavailableView("No results", systemImage: "magnifyingglass")
+    /// }
+    /// ```
+    public func emptyState<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> Self {
+        copy { $0.emptyStateContent = { AnyView(content()) } }
     }
 
     /// Reports the inclusive range of row indices currently visible in the viewport.
@@ -572,12 +572,14 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                             }
                             .onAppear {
                                 consumeNativeReachEnd(lastVisibleRow: indexedItem.offset)
+                                prefetchNativeRowsIfNeeded(lastVisibleRow: indexedItem.offset)
                             }
                             .onChange(of: items.count) { _, _ in
                                 // A page no larger than the threshold can leave an already-visible
                                 // row inside the new threshold zone. Re-evaluate visible rows when
                                 // the count changes instead of waiting for another scroll gesture.
                                 consumeNativeReachEnd(lastVisibleRow: indexedItem.offset)
+                                prefetchNativeRowsIfNeeded(lastVisibleRow: indexedItem.offset)
                             }
                     }
                 }
