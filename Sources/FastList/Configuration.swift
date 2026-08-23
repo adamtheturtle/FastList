@@ -172,4 +172,8 @@ struct FastListConfiguration<Item: Identifiable> {
     var onMoveRows: ((IndexSet, Int) -> Void)?
     /// When `true`, the native list enters an editing mode (reorder/delete chrome on iOS).
     var isEditing = false
+    /// When `true`, the iOS backend uses `List(selection:)` so selection stays in sync
+    /// inside a `NavigationSplitView` sidebar/detail relationship.
+    var usesNativeSelectionBinding = false
 }
+
