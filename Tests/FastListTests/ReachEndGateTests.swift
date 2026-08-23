@@ -1,5 +1,5 @@
 import Testing
-@testable import FastList
+@_spi(FastListTesting) @testable import FastList
 
 @Suite struct FastListReachEndGateTests {
     @Test func bothBackendsCanShareOncePerCountSemantics() {

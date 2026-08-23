@@ -280,6 +280,21 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.accessibilityAnnouncesSelectionChanges = enabled }
     }
 
+    /// Highlights the row under the pointer on macOS.
+    public func hoverHighlight(_ enabled: Bool = true) -> Self {
+        copy { $0.highlightsRowsOnHover = enabled }
+    }
+
+    /// Pins a header view above the list rows.
+    public func listHeader<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> Self {
+        copy { $0.listHeaderContent = { AnyView(content()) } }
+    }
+
+    /// Pins a footer view below the list rows.
+    public func listFooter<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> Self {
+        copy { $0.listFooterContent = { AnyView(content()) } }
+    }
+
     /// Fires when the last visible row comes within `threshold` rows of the end of the data
     /// as a user scroll settles - the trigger for load-more / infinite-scroll paging.
     ///
@@ -368,6 +383,10 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         // Returns whether the press was consumed; `false` lets the table fall through to
         // `super.keyDown(with:)` so the responder chain still sees Return.
         table.onReturn = { [weak coordinator = context.coordinator] in coordinator?.handleReturn() ?? false }
+        table.onHoveredRowChanged = { [weak coordinator = context.coordinator, weak table] row in
+            guard let coordinator, let table else { return }
+            coordinator.updateHoveredRow(row, in: table)
+        }
         table.onSelectAll = { [weak coordinator = context.coordinator] in coordinator?.handleSelectAll() ?? false }
 
         // Drive the right-click menu
@@ -414,6 +433,10 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         coordinator.reloadIfNeeded(items, force: false)
         coordinator.applySelection(selection)
 
+        container.updateChrome(
+            header: configuration.listHeaderContent?(),
+            footer: configuration.listFooterContent?()
+        )
         let showsEmpty = items.isEmpty && configuration.emptyStateContent != nil
         container.updateEmptyState(configuration.emptyStateContent?(), isVisible: showsEmpty)
 
@@ -466,11 +489,19 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// Return share the same modifiers as the macOS backend.
     extension FastList: View {
         public var body: some View {
-            Group {
-                if items.isEmpty, let emptyStateContent = configuration.emptyStateContent {
-                    emptyStateContent()
-                } else {
-                    nativeListBody
+            VStack(spacing: 0) {
+                if let listHeaderContent = configuration.listHeaderContent {
+                    listHeaderContent()
+                }
+                Group {
+                    if items.isEmpty, let emptyStateContent = configuration.emptyStateContent {
+                        emptyStateContent()
+                    } else {
+                        nativeListBody
+                    }
+                }
+                if let listFooterContent = configuration.listFooterContent {
+                    listFooterContent()
                 }
             }
         }

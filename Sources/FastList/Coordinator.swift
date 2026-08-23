@@ -33,6 +33,9 @@ extension FastList {
         /// scrolls once rather than on every update. Cleared when the target goes back to `nil`,
         /// so re-setting the same id later scrolls again.
         private var lastScrolledToID: Item.ID?
+        private var hoveredRow = -1
+        /// Anchor for shift-click range selection.
+        private var selectionAnchorRow: Int?
 
         init(_ parent: FastList) {
             self.parent = parent
@@ -99,6 +102,7 @@ extension FastList {
         public func tableView(_ tableView: NSTableView, viewFor _: NSTableColumn?, row: Int) -> NSView? {
             let cell = tableView.makeView(withIdentifier: .fastListCell, owner: self) as? HostingCellView
                 ?? HostingCellView(identifier: .fastListCell)
+            cell.wantsLayer = true
             cell.rowIndex = row
             cell.enclosingTableView = tableView
             cell.onHeightChange = { [weak cell, weak tableView] in
@@ -112,7 +116,22 @@ extension FastList {
                 )
             }
             cell.host(content)
+            if parent.configuration.highlightsRowsOnHover, row == hoveredRow {
+                cell.layer?.backgroundColor = NSColor.selectedContentBackgroundColor.withAlphaComponent(0.15).cgColor
+            } else {
+                cell.layer?.backgroundColor = nil
+            }
             return cell
+        }
+
+        func updateHoveredRow(_ row: Int, in tableView: NSTableView) {
+            guard parent.configuration.highlightsRowsOnHover else { return }
+            guard row != hoveredRow else { return }
+
+            let rowsToRefresh = IndexSet([hoveredRow, row].filter { $0 >= 0 })
+            hoveredRow = row
+            guard !rowsToRefresh.isEmpty else { return }
+            tableView.reloadData(forRowIndexes: rowsToRefresh, columnIndexes: IndexSet(integer: 0))
         }
 
         public func tableView(_: NSTableView, pasteboardWriterForRow row: Int) -> (any NSPasteboardWriting)? {
@@ -150,8 +169,23 @@ extension FastList {
 
         /// Backstop for the programmatic selection paths that bypass
         /// ``selectionShouldChange(in:)``, so a non-selectable list stays non-selectable.
-        public func tableView(_: NSTableView, shouldSelectRow _: Int) -> Bool {
-            parent.configuration.selectionMode != .none
+        /// Also implements shift-click range selection on macOS.
+        public func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+            guard parent.configuration.selectionMode != .none else { return false }
+            guard items.indices.contains(row) else { return false }
+
+            if NSEvent.modifierFlags.contains(.shift), let anchor = selectionAnchorRow, anchor >= 0 {
+                let range = min(anchor, row) ... max(anchor, row)
+                isApplyingSelection = true
+                tableView.selectRowIndexes(IndexSet(integersIn: range), byExtendingSelection: false)
+                isApplyingSelection = false
+                return false
+            }
+
+            if !NSEvent.modifierFlags.contains(.command) {
+                selectionAnchorRow = row
+            }
+            return true
         }
 
         /// Push the binding's selection into the table without echoing it back.

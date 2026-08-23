@@ -120,6 +120,9 @@ struct FastListConfiguration<Item: Identifiable> {
     var rowContentID: AnyHashable?
     var accessibilityIncludesRowPosition = false
     var accessibilityAnnouncesSelectionChanges = false
+    var highlightsRowsOnHover = false
     /// Shown instead of the list when `items` is empty.
     var emptyStateContent: (() -> AnyView)?
+    var listHeaderContent: (() -> AnyView)?
+    var listFooterContent: (() -> AnyView)?
 }
