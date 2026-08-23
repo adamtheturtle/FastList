@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Animated insert/delete for in-order identity changes without a full `reloadData`.
 - `FastListIDDiff` ordered-identity diff as a stepping-stone toward diffable data sources.
 - `.onMove` row reordering on macOS (local drop) and iOS (`ForEach.onMove`).
+- `.editing(_:)` to drive iOS `EditMode` for inline reorder/delete chrome.
 - Shared `FastListReachEndGate` for once-per-row-count paging on macOS and iOS.
 - iOS / iPadOS `onReachEnd` wiring on the native SwiftUI `List` backend.
 - Vale prose lint and Dependabot auto-merge for GitHub Actions.

@@ -1081,3 +1081,18 @@ private extension NSEvent {
         #expect(list.sections == nil)
     }
 }
+
+@MainActor
+@Suite struct FastListEditingModifierTests {
+    private struct Row: Identifiable {
+        let id: Int
+    }
+
+    @Test func editingModifierStoresFlag() {
+        let base = FastList([Row(id: 1)], selection: .constant([])) { _ in Text("row") }
+        #expect(!base.configuration.isEditing)
+        let editing = base.editing(true)
+        #expect(editing.configuration.isEditing)
+        #expect(!base.configuration.isEditing)
+    }
+}
