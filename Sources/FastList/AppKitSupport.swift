@@ -106,7 +106,10 @@ final class HostingCellView: NSTableCellView {
         let height = hosting.fittingSize.height
         guard abs(height - lastReportedHeight) > 0.5 else { return }
         lastReportedHeight = height
-        onHeightChange?()
+        let notify = onHeightChange
+        RunLoop.main.perform {
+            notify?()
+        }
     }
 
     func host(_ view: AnyView) {
