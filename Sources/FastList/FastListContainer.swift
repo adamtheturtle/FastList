@@ -49,12 +49,15 @@ public final class FastListContainerView: NSView {
             headerHostingView.rootView = header
             headerHostingView.isHidden = false
         } else {
+            // Clearing rootView collapses intrinsic height; isHidden alone still reserves space.
+            headerHostingView.rootView = AnyView(EmptyView())
             headerHostingView.isHidden = true
         }
         if let footer {
             footerHostingView.rootView = footer
             footerHostingView.isHidden = false
         } else {
+            footerHostingView.rootView = AnyView(EmptyView())
             footerHostingView.isHidden = true
         }
     }
