@@ -652,20 +652,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         }
     }
 
-    /// Applies SwiftUI `onMove` when row reordering is configured.
-    private struct NativeMoveModifier: ViewModifier {
-        let onMove: ((IndexSet, Int) -> Void)?
-
-        @ViewBuilder
-        func body(content: Content) -> some View {
-            if let onMove {
-                content.onMove(perform: onMove)
-            } else {
-                content
-            }
-        }
-    }
-
     private struct NativeVisibleRowBounds: Equatable {
         var minY: CGFloat
         var maxY: CGFloat
@@ -805,11 +791,15 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                         }
                     }
                 }
+            } else if let onMove = configuration.onMoveRows {
+                ForEach(Array(items.enumerated()), id: \.element.id) { indexedItem in
+                    nativeInstrumentedRow(for: indexedItem.element, at: indexedItem.offset)
+                }
+                .onMove(perform: onMove)
             } else {
                 ForEach(Array(items.enumerated()), id: \.element.id) { indexedItem in
                     nativeInstrumentedRow(for: indexedItem.element, at: indexedItem.offset)
                 }
-                .modifier(NativeMoveModifier(onMove: configuration.onMoveRows))
             }
         }
 
