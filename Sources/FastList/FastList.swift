@@ -260,6 +260,20 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     }
     #endif
 
+    /// Accepts drops onto a row index. `validate` decides the drag operation; `perform`
+    /// runs when the user drops. Registers the table as a drop destination on macOS.
+    #if os(macOS)
+    public func onRowDrop(
+        validate: @escaping (any NSDraggingInfo, Int) -> NSDragOperation = { _, _ in .copy },
+        perform: @escaping (any NSDraggingInfo, Int) -> Bool
+    ) -> Self {
+        copy {
+            $0.validateRowDrop = validate
+            $0.onRowDrop = perform
+        }
+    }
+    #endif
+
     /// Makes rows draggable on iOS / iPadOS. Return an `NSItemProvider`, or `nil` to make
     /// that row non-draggable.
     ///

@@ -899,6 +899,17 @@ private extension NSEvent {
         #expect(table.localMask.contains(.move))
     }
 
+    @Test func onRowDropStoresHandlers() {
+        let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+        #expect(base.configuration.onRowDrop == nil)
+
+        let configured = base.onRowDrop(validate: { _, _ in .copy }) { _, _ in true }
+        #expect(configured.configuration.onRowDrop != nil)
+        #expect(configured.configuration.validateRowDrop != nil)
+        #expect(base.configuration.onRowDrop == nil)
+    }
+    }
+
     @Test func swipeEdgeRoutesToTheRightSlot() {
         let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
         let leading = base.swipeActions(edge: .leading) { _ in [SwipeAction(title: "Flag") {}] }

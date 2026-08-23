@@ -88,8 +88,12 @@ extension FastList {
             }
             tableView.setDraggingSourceOperationMask(localMask, forLocal: true)
             tableView.setDraggingSourceOperationMask(dragEnabled ? .copy : [], forLocal: false)
-            if reorderEnabled {
-                tableView.registerForDraggedTypes([.string])
+            if reorderEnabled || parent.configuration.onRowDrop != nil {
+                var types: [NSPasteboard.PasteboardType] = [.string]
+                if parent.configuration.onRowDrop != nil {
+                    types.append(contentsOf: [.URL, .fileURL, .tiff, .png])
+                }
+                tableView.registerForDraggedTypes(types)
             }
         }
 
@@ -485,7 +489,7 @@ extension FastList {
             )
         }
 
-        // MARK: Reorder drop
+        // MARK: Drop destination
 
         public func tableView(
             _ tableView: NSTableView,
@@ -493,13 +497,19 @@ extension FastList {
             proposedRow row: Int,
             proposedDropOperation dropOperation: NSTableView.DropOperation
         ) -> NSDragOperation {
-            guard parent.configuration.onMoveRows != nil,
-                  info.draggingSource as AnyObject? === tableView else { return [] }
-            if dropOperation == .above {
+            if parent.configuration.onMoveRows != nil,
+               info.draggingSource as AnyObject? === tableView {
+                if dropOperation == .above {
+                    return .move
+                }
+                tableView.setDropRow(row, dropOperation: .above)
                 return .move
             }
-            tableView.setDropRow(row, dropOperation: .above)
-            return .move
+            guard let validate = parent.configuration.validateRowDrop else { return [] }
+            if dropOperation != .above {
+                tableView.setDropRow(row, dropOperation: .above)
+            }
+            return validate(info, row)
         }
 
         public func tableView(
@@ -508,12 +518,14 @@ extension FastList {
             row: Int,
             dropOperation _: NSTableView.DropOperation
         ) -> Bool {
-            guard let onMove = parent.configuration.onMoveRows,
-                  info.draggingSource as AnyObject? === tableView,
-                  !draggingRowIndexes.isEmpty else { return false }
-            onMove(draggingRowIndexes, row)
-            draggingRowIndexes = IndexSet()
-            return true
+            if let onMove = parent.configuration.onMoveRows,
+               info.draggingSource as AnyObject? === tableView,
+               !draggingRowIndexes.isEmpty {
+                onMove(draggingRowIndexes, row)
+                draggingRowIndexes = IndexSet()
+                return true
+            }
+            return parent.configuration.onRowDrop?(info, row) ?? false
         }
 
         // MARK: Swipe actions
