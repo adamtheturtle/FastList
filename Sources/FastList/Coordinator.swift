@@ -109,7 +109,13 @@ extension FastList {
                 guard let cell, let tableView else { return }
                 tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: cell.rowIndex))
             }
-            cell.host(parent.rowContent(items[row]))
+            var content = parent.rowContent(items[row])
+            if parent.configuration.accessibilityIncludesRowPosition {
+                content = AnyView(
+                    content.accessibilityValue("\(row + 1) of \(items.count)")
+                )
+            }
+            cell.host(content)
             if parent.configuration.highlightsRowsOnHover, row == hoveredRow {
                 cell.layer?.backgroundColor = NSColor.selectedContentBackgroundColor.withAlphaComponent(0.15).cgColor
             } else {
@@ -202,6 +208,17 @@ extension FastList {
                 items.indices.contains($0) ? items[$0].id : nil
             })
             if ids != parent.selection { parent.selection = ids }
+            announceSelectionChange(count: ids.count)
+        }
+
+        private func announceSelectionChange(count: Int) {
+            guard parent.configuration.accessibilityAnnouncesSelectionChanges else { return }
+            let message = count == 1 ? "1 row selected" : "\(count) rows selected"
+            NSAccessibility.post(
+                element: NSApp.mainWindow as Any,
+                notification: .announcementRequested,
+                userInfo: [.announcement: message, .priority: NSAccessibilityPriorityLevel.high.rawValue]
+            )
         }
 
         // MARK: Actions
