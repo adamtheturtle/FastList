@@ -72,7 +72,7 @@ jobs:
       - name: Test shared targets on iOS
         run: >-
           xcodebuild -scheme FastList-Package
-          -destination 'platform=iOS Simulator,name=iPhone 16'
+          -destination 'platform=iOS Simulator,name=iPhone 17'
           -derivedDataPath "$RUNNER_TEMP/FastList-iOS-Test"
           CODE_SIGNING_ALLOWED=NO
           test
