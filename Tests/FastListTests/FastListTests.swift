@@ -10,6 +10,36 @@ private struct Row: Identifiable, Equatable {
     let name: String
 }
 
+
+private final class AnimatedUpdateTableView: NSTableView {
+    var reloadCount = 0
+    var removedRowIndexes: [IndexSet] = []
+    var insertedRowIndexes: [IndexSet] = []
+    var beganUpdates = 0
+    var endedUpdates = 0
+
+    override func reloadData() {
+        reloadCount += 1
+        super.reloadData()
+    }
+
+    override func beginUpdates() {
+        beganUpdates += 1
+    }
+
+    override func endUpdates() {
+        endedUpdates += 1
+    }
+
+    override func removeRows(at rowIndexes: IndexSet, withAnimation _: NSTableView.AnimationOptions = []) {
+        removedRowIndexes.append(rowIndexes)
+    }
+
+    override func insertRows(at rowIndexes: IndexSet, withAnimation _: NSTableView.AnimationOptions = []) {
+        insertedRowIndexes.append(rowIndexes)
+    }
+}
+
 private final class CountingTableView: NSTableView {
     var reloadCount = 0
 
@@ -60,6 +90,47 @@ private final class SnapshotReloadTableView: NSTableView {
     private func makeCoordinator(_ rows: [Row], selection: Set<Int> = []) -> FastList<Row>.Coordinator {
         let list = FastList(rows, selection: .constant(selection)) { Text($0.name) }
         return list.makeCoordinator()
+    }
+
+
+    @Test func animatedInsertDeleteAvoidsFullReload() {
+        let table = AnimatedUpdateTableView()
+        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
+        let list = FastList([Row(id: 1, name: "a"), Row(id: 2, name: "b")], selection: .constant([])) {
+            Text($0.name)
+        }
+        let coordinator = list.makeCoordinator()
+        coordinator.tableView = table
+        coordinator.reloadIfNeeded([Row(id: 1, name: "a"), Row(id: 2, name: "b")], force: true)
+        #expect(table.reloadCount == 1)
+
+        coordinator.reloadIfNeeded(
+            [Row(id: 1, name: "a"), Row(id: 2, name: "b"), Row(id: 3, name: "c")],
+            force: false
+        )
+        #expect(table.reloadCount == 1)
+        #expect(table.beganUpdates == 1)
+        #expect(table.endedUpdates == 1)
+        #expect(table.insertedRowIndexes == [IndexSet(integer: 2)])
+
+        coordinator.reloadIfNeeded([Row(id: 2, name: "b"), Row(id: 3, name: "c")], force: false)
+        #expect(table.reloadCount == 1)
+        #expect(table.removedRowIndexes == [IndexSet(integer: 0)])
+    }
+
+    @Test func reorderFallsBackToFullReload() {
+        let table = AnimatedUpdateTableView()
+        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
+        let list = FastList([Row(id: 1, name: "a"), Row(id: 2, name: "b")], selection: .constant([])) {
+            Text($0.name)
+        }
+        let coordinator = list.makeCoordinator()
+        coordinator.tableView = table
+        coordinator.reloadIfNeeded([Row(id: 1, name: "a"), Row(id: 2, name: "b")], force: true)
+
+        coordinator.reloadIfNeeded([Row(id: 2, name: "b"), Row(id: 1, name: "a")], force: false)
+        #expect(table.reloadCount == 2)
+        #expect(table.insertedRowIndexes.isEmpty)
     }
 
     @Test func buildsIDIndexWithoutATableView() {

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.listStyle(_:)` for inset, plain, and sidebar chrome on macOS and iOS.
 - `swipeActions(allowsFullSwipe:)` and coverage for more than two actions per edge.
 - `FastListSection` and a sectioned initializer with SwiftUI `Section` headers on iOS.
+- Animated insert/delete for in-order identity changes without a full `reloadData`.
 - Shared `FastListReachEndGate` for once-per-row-count paging on macOS and iOS.
 - iOS / iPadOS `onReachEnd` wiring on the native SwiftUI `List` backend.
 - Vale prose lint and Dependabot auto-merge for GitHub Actions.
