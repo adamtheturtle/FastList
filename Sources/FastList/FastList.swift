@@ -581,7 +581,10 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                                 consumeNativeReachEnd(lastVisibleRow: indexedItem.offset)
                                 prefetchNativeRowsIfNeeded(lastVisibleRow: indexedItem.offset)
                             }
-                            .onChange(of: items.count) { _, _ in
+                            .onChange(of: items.count) { oldCount, newCount in
+                                if newCount < oldCount {
+                                    lastPrefetchedThroughRow = -1
+                                }
                                 // A page no larger than the threshold can leave an already-visible
                                 // row inside the new threshold zone. Re-evaluate visible rows when
                                 // the count changes instead of waiting for another scroll gesture.
@@ -614,10 +617,14 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                     reconcileSelection()
                     honorNativeScrollToIfNeeded(proxy: proxy)
                 }
-                .onChange(of: items.map(\.id)) { _, _ in
+                .onChange(of: items.map(\.id)) { oldIDs, newIDs in
                     reconcileSelection()
                     honorNativeScrollToIfNeeded(proxy: proxy)
-                    lastPrefetchedThroughRow = -1
+                    let isPureAppend = newIDs.count > oldIDs.count
+                        && Array(newIDs.prefix(oldIDs.count)) == oldIDs
+                    if !isPureAppend {
+                        lastPrefetchedThroughRow = -1
+                    }
                     if items.isEmpty {
                         lastNativeVisibleRange = nil
                         reportNativeTopRowID(nil)
