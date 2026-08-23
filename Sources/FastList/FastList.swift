@@ -84,6 +84,10 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     var configuration = FastListConfiguration<Item>()
     #if !os(macOS)
         @State private var nativeReachEndGate = FastListReachEndGate()
+        /// De-dupes `onTopRowChange` the same way the AppKit coordinator does.
+        @State private var lastNativeTopRowID: Item.ID?
+        /// Honors ``scrollToRow(id:then:)`` once until the target is cleared, matching macOS.
+        @State private var lastHonoredScrollToID: Item.ID?
     #endif
 
     // MARK: Initializers
@@ -365,14 +369,23 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
 #else
     // MARK: View (iOS / iPadOS)
 
+    /// Vertical origin of each visible row in the list coordinate space. Used to pick the
+    /// topmost on-screen row for ``onTopRowChange``.
+    private enum NativeVisibleRowMinYKey: PreferenceKey {
+        static var defaultValue: [Int: CGFloat] { [:] }
+
+        static func reduce(value: inout [Int: CGFloat], nextValue: () -> [Int: CGFloat]) {
+            value.merge(nextValue(), uniquingKeysWith: { $1 })
+        }
+    }
+
     /// The iPad backend: a native SwiftUI `List`. SwiftUI's `List` is `UITableView`-backed
     /// and recycles rows, so the large-list selection cost that motivated the AppKit
     /// `NSTableView` path on macOS isn't a problem here - the platform list is already
     /// fast. Selection (driving a `NavigationSplitView` detail), per-row swipe actions, and
-    /// the per-row context menu map straight onto the same `FastList` configuration. The
-    /// macOS-only affordances - double-click / Return-to-open (iPad opens via selection),
-    /// AppKit row dragging, and free-scroll anchor restore - are intentionally not wired
-    /// here yet.
+    /// the per-row context menu map straight onto the same `FastList` configuration.
+    /// Scroll restore (`onTopRowChange` / `scrollToRow`), pointer double-tap, and hardware
+    /// Return share the same modifiers as the macOS backend.
     extension FastList: View {
         public var body: some View {
             // Note: no `selection:` binding on the `List`. A selection-bound `List` in a
@@ -383,33 +396,64 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             // focus effect). Instead each row drives the `selection` binding itself on tap and
             // we render the highlight entirely via `selectionBackground`, so the selected row
             // keeps normal, readable text and no ring.
-            List {
-                ForEach(Array(items.enumerated()), id: \.element.id) { indexedItem in
-                    row(for: indexedItem.element)
-                        .onAppear {
-                            consumeNativeReachEnd(lastVisibleRow: indexedItem.offset)
-                        }
-                        .onChange(of: items.count) { _, _ in
-                            // A page no larger than the threshold can leave an already-visible
-                            // row inside the new threshold zone. Re-evaluate visible rows when
-                            // the count changes instead of waiting for another scroll gesture.
-                            consumeNativeReachEnd(lastVisibleRow: indexedItem.offset)
-                        }
+            ScrollViewReader { proxy in
+                List {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { indexedItem in
+                        row(for: indexedItem.element)
+                            .id(indexedItem.element.id)
+                            .background {
+                                GeometryReader { geometry in
+                                    Color.clear.preference(
+                                        key: NativeVisibleRowMinYKey.self,
+                                        value: [
+                                            indexedItem.offset: geometry.frame(in: .named("fastListNative")).minY
+                                        ]
+                                    )
+                                }
+                            }
+                            .onAppear {
+                                consumeNativeReachEnd(lastVisibleRow: indexedItem.offset)
+                            }
+                            .onChange(of: items.count) { _, _ in
+                                // A page no larger than the threshold can leave an already-visible
+                                // row inside the new threshold zone. Re-evaluate visible rows when
+                                // the count changes instead of waiting for another scroll gesture.
+                                consumeNativeReachEnd(lastVisibleRow: indexedItem.offset)
+                            }
+                    }
                 }
-            }
-            // `.plain`, with a custom selection background (see `selectionBackground`).
-            // The earlier `.sidebar` style insets selection nicely when the list IS the
-            // primary sidebar column, but a non-sidebar *content* column on iPad lays its
-            // rows out shifted under the leading edge, clipping the first characters of
-            // each row. `.plain` lays out correctly; its default selection is a full-bleed
-            // rectangle that runs edge to edge and slides behind the `NavigationSplitView`
-            // sidebar, so we drive selection ourselves and draw our own inset,
-            // rounded-rectangle highlight instead - no bleed, no clipping, no system emphasis.
-            .listStyle(.plain)
-            .onAppear(perform: reconcileSelection)
-            .onChange(of: items.map(\.id)) { _, _ in reconcileSelection() }
-            .onChange(of: configuration.onReachEnd == nil) { _, isDisabled in
-                if isDisabled { nativeReachEndGate.reset() }
+                // `.plain`, with a custom selection background (see `selectionBackground`).
+                // The earlier `.sidebar` style insets selection nicely when the list IS the
+                // primary sidebar column, but a non-sidebar *content* column on iPad lays its
+                // rows out shifted under the leading edge, clipping the first characters of
+                // each row. `.plain` lays out correctly; its default selection is a full-bleed
+                // rectangle that runs edge to edge and slides behind the `NavigationSplitView`
+                // sidebar, so we drive selection ourselves and draw our own inset,
+                // rounded-rectangle highlight instead - no bleed, no clipping, no system emphasis.
+                .listStyle(.plain)
+                .coordinateSpace(name: "fastListNative")
+                .onPreferenceChange(NativeVisibleRowMinYKey.self, perform: reportNativeTopRow(from:))
+                .onAppear {
+                    reconcileSelection()
+                    honorNativeScrollToIfNeeded(proxy: proxy)
+                }
+                .onChange(of: items.map(\.id)) { _, _ in
+                    reconcileSelection()
+                    honorNativeScrollToIfNeeded(proxy: proxy)
+                    if items.isEmpty {
+                        reportNativeTopRowID(nil)
+                    }
+                }
+                .onChange(of: configuration.scrollToID) { _, _ in
+                    honorNativeScrollToIfNeeded(proxy: proxy)
+                }
+                .onChange(of: configuration.onReachEnd == nil) { _, isDisabled in
+                    if isDisabled { nativeReachEndGate.reset() }
+                }
+                .focusable(configuration.onReturnKey != nil)
+                .onKeyPress(.return) {
+                    handleNativeReturnKey()
+                }
             }
         }
 
@@ -430,6 +474,54 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         private func reconcileSelection() {
             let reconciled = reconciledFastListSelection(selection, items: items)
             if reconciled != selection { selection = reconciled }
+        }
+
+        /// Picks the topmost row whose frame intersects the list viewport (minY closest to
+        /// zero without being far above the clip), matching AppKit's visible-rect top row.
+        private func reportNativeTopRow(from minYs: [Int: CGFloat]) {
+            guard configuration.onTopRowChange != nil else { return }
+            guard !items.isEmpty else {
+                reportNativeTopRowID(nil)
+                return
+            }
+
+            let topOffset = minYs
+                .filter { $0.value > -1 }
+                .min(by: { $0.value < $1.value })?
+                .key
+            guard let topOffset, items.indices.contains(topOffset) else { return }
+
+            reportNativeTopRowID(items[topOffset].id)
+        }
+
+        private func reportNativeTopRowID(_ id: Item.ID?) {
+            guard id != lastNativeTopRowID else { return }
+            lastNativeTopRowID = id
+            configuration.onTopRowChange?(id)
+        }
+
+        private func honorNativeScrollToIfNeeded(proxy: ScrollViewProxy) {
+            guard let id = configuration.scrollToID else {
+                lastHonoredScrollToID = nil
+                return
+            }
+            guard id != lastHonoredScrollToID,
+                  items.contains(where: { $0.id == id }) else { return }
+
+            lastHonoredScrollToID = id
+            proxy.scrollTo(id, anchor: .top)
+            configuration.onScrolledToID?()
+        }
+
+        @discardableResult
+        private func handleNativeReturnKey() -> KeyPress.Result {
+            guard let onReturnKey = configuration.onReturnKey,
+                  let selectedID = selection.first,
+                  let item = items.first(where: { $0.id == selectedID }) else {
+                return .ignored
+            }
+            onReturnKey(item)
+            return .handled
         }
 
         /// The per-row selection highlight: an inset, rounded-rectangle fill when the row
@@ -460,6 +552,8 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             // recolor (see `body`). A `.rect` content shape makes the whole row tappable
             // even where its content is hit-transparent; interactive controls inside the
             // row (e.g. a favorite-star button) still receive their own taps.
+            // Double-tap opens via ``onDoubleClick`` (pointer / trackpad on iPad); single tap
+            // still selects. Hardware Return is handled on the list itself.
             #if os(tvOS)
             let base = rowContent(item)
                 .contentShape(.rect)
@@ -471,7 +565,10 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             #else
             let base = rowContent(item)
                 .contentShape(.rect)
-                .onTapGesture {
+                .onTapGesture(count: 2) {
+                    configuration.onDoubleClick?(item)
+                }
+                .onTapGesture(count: 1) {
                     selection = [item.id]
                 }
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
