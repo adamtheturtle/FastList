@@ -903,11 +903,13 @@ private extension NSEvent {
         let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
         #expect(base.configuration.onRowDrop == nil)
 
-        let configured = base.onRowDrop(validate: { _, _ in .copy }) { _, _ in true }
+        let configured = base.onRowDrop(
+            validate: { _, _ in .copy },
+            perform: { _, _ in true }
+        )
         #expect(configured.configuration.onRowDrop != nil)
         #expect(configured.configuration.validateRowDrop != nil)
         #expect(base.configuration.onRowDrop == nil)
-    }
     }
 
     @Test func swipeEdgeRoutesToTheRightSlot() {
@@ -1120,26 +1122,5 @@ private extension NSEvent {
         let synced = base.navigationSplitSelectionSync()
         #expect(synced.configuration.usesNativeSelectionBinding)
         #expect(!base.configuration.usesNativeSelectionBinding)
-    }
-}
-    private struct Row: Identifiable {
-        let id: Int
-    }
-
-<<<<<<< HEAD
-    @Test func editingModifierStoresFlag() {
-        let base = FastList([Row(id: 1)], selection: .constant([])) { _ in Text("row") }
-        #expect(!base.configuration.isEditing)
-        let editing = base.editing(true)
-        #expect(editing.configuration.isEditing)
-        #expect(!base.configuration.isEditing)
-=======
-    @Test func navigationSplitSelectionSyncStoresFlag() {
-        let base = FastList([Row(id: 1)], selection: .constant([])) { _ in Text("row") }
-        #expect(!base.configuration.usesNativeSelectionBinding)
-        let synced = base.navigationSplitSelectionSync()
-        #expect(synced.configuration.usesNativeSelectionBinding)
-        #expect(!base.configuration.usesNativeSelectionBinding)
->>>>>>> 1ee427c (Sync selection with NavigationSplitView via List binding)
     }
 }

@@ -386,7 +386,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.isEditing = isEditing }
     }
 
-
     /// Uses the platform `List` selection binding so selection stays synchronized when the
     /// list is the leading column of a `NavigationSplitView`.
     ///
@@ -731,7 +730,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                 nativeSelectionList {
                     nativeSectionedRows
                 }
-                }
                 // `.plain`, with a custom selection background (see `selectionBackground`).
                 // The earlier `.sidebar` style insets selection nicely when the list IS the
                 // primary sidebar column, but a non-sidebar *content* column on iPad lays its
@@ -857,8 +855,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                     prefetchNativeRowsIfNeeded(lastVisibleRow: index)
                 }
         }
-
-
 
         @ViewBuilder
         private func nativeSelectionList<Content: View>(
