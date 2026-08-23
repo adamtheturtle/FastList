@@ -479,7 +479,6 @@ extension FastList {
             )
         }
 
-
         // MARK: Reorder drop
 
         public func tableView(

@@ -169,4 +169,3 @@ struct FastListConfiguration<Item: Identifiable> {
     /// Called when the user reorders rows. Arguments match SwiftUI `onMove`.
     var onMoveRows: ((IndexSet, Int) -> Void)?
 }
-

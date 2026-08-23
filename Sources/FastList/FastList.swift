@@ -353,7 +353,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.listStyle = style }
     }
 
-
     /// Enables interactive row reordering. The closure receives the source indexes and
     /// destination offset, matching SwiftUI's `onMove` semantics. The caller must mutate
     /// `items` to match; `FastList` does not own the array.
