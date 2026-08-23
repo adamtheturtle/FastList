@@ -11,6 +11,7 @@
 import AppKit
 #endif
 import FastList
+import MacPullToRefresh
 import SwiftUI
 
 @main
@@ -61,11 +62,16 @@ private struct ContentView: View {
     }
 
     private var listWithPaging: some View {
-        configuredList
-            .onReachEnd(threshold: 20) {
-                guard query.isEmpty else { return }
-                loadNextPage()
+        Group {
+            if query.isEmpty {
+                configuredList.onReachEnd(threshold: 20) { loadNextPage() }
+            } else {
+                configuredList
             }
+        }
+        .macPullToRefresh {
+            await refreshContacts()
+        }
     }
 
     private var configuredList: FastList<Contact> {
@@ -175,6 +181,16 @@ private struct ContentView: View {
         let page = (nextID ..< (nextID + Self.pageSize)).map(Self.makeContact)
         contacts.append(contentsOf: page)
         nextID += Self.pageSize
+    }
+
+    @MainActor
+    private func refreshContacts() async {
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        contacts = (1...Self.pageSize).map(Self.makeContact)
+        nextID = Self.pageSize + 1
+        selection.removeAll()
+        lastOpened = "Refreshed"
+        rowContentRevision += 1
     }
 
     private static func makeContact(_ id: Int) -> Contact {
