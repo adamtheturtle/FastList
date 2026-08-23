@@ -125,7 +125,7 @@ extension FastList {
             }
             selectionAnchorRow = anchorID.flatMap { indexByID[$0] }
             if itemsChanged {
-                let oldIDs = items.map(\.id)
+                let oldIDs = previousIDs
                 let newIDs = newItems.map(\.id)
                 let isPureAppend = newIDs.count > oldIDs.count
                     && Array(newIDs.prefix(oldIDs.count)) == oldIDs
