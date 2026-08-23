@@ -10,7 +10,6 @@ private struct Row: Identifiable, Equatable {
     let name: String
 }
 
-
 private final class AnimatedUpdateTableView: NSTableView {
     var reloadCount = 0
     var removedRowIndexes: [IndexSet] = []
@@ -91,7 +90,6 @@ private final class SnapshotReloadTableView: NSTableView {
         let list = FastList(rows, selection: .constant(selection)) { Text($0.name) }
         return list.makeCoordinator()
     }
-
 
     @Test func animatedInsertDeleteAvoidsFullReload() {
         let table = AnimatedUpdateTableView()
