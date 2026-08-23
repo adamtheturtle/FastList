@@ -46,12 +46,14 @@ func reconciledFastListSelection<Item: Identifiable>(
 ///
 /// ## Selection
 ///
-/// Pass a set binding to drive multiple selection. `rows` is any
+/// Pass a binding to drive selection, or omit it for a non-selectable list. `rows` is any
 /// `[Item]` where `Item: Identifiable`; filter and sort it yourself before handing it over,
 /// because `FastList` renders exactly what you pass.
 ///
 /// ```swift
 /// FastList(rows, selection: $selectedIDs) { RowView($0) }  // Binding<Set<ID>>
+/// FastList(rows, selection: $selectedID)  { RowView($0) }  // Binding<ID?>
+/// FastList(rows) { RowView($0) }                           // no selection
 /// ```
 ///
 /// ## Hit-testing
@@ -112,6 +114,43 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         rowContent = { AnyView(row($0)) }
     }
 
+    /// Creates a list with a single-selection binding.
+    ///
+    /// The table is put into single-selection mode, so the user cannot shift- or
+    /// command-click a second row: a multi-row selection that this binding could not
+    /// represent is never formed in the first place. (Collapsing one after the fact with
+    /// `Set.first` would pick an arbitrary, hash-order-dependent row.)
+    public init(
+        _ items: [Item],
+        selection: Binding<Item.ID?>,
+        @ViewBuilder row: @escaping (Item) -> some View
+    ) {
+        self.init(
+            items,
+            selection: Binding(
+                get: { selection.wrappedValue.map { [$0] } ?? [] },
+                // The table is single-selection, so this set holds at most one id.
+                set: { selection.wrappedValue = $0.first }
+            ),
+            row: row
+        )
+        configuration.selectionMode = .single
+    }
+
+    /// Creates a non-selectable list.
+    ///
+    /// The table itself is made non-selectable, rather than merely dropping the selection
+    /// on the floor: a click leaves no highlight to begin with. A discarding binding would
+    /// let AppKit highlight the clicked row and, because a write that changes nothing
+    /// invalidates nothing, never get a chance to undo it.
+    public init(
+        _ items: [Item],
+        @ViewBuilder row: @escaping (Item) -> some View
+    ) {
+        self.init(items, selection: .constant([]), row: row)
+        configuration.selectionMode = .none
+    }
+
     // MARK: Modifiers
 
     /// Opens an item when it's double-clicked.
@@ -151,18 +190,16 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         }
     }
 
-    /// Adds a native right-click menu to every row. The closure runs per right-clicked row,
-    /// so you can build single-row or multi-selection menus by reading your own selection
-    /// state.
+    /// Adds a native right-click menu to every row. The closure receives the clicked row and
+    /// the current selection set so you can build single-row or multi-selection menus.
     ///
     /// ```swift
-    /// .rowContextMenu { row in
+    /// .rowContextMenu { row, selection in
     ///     [.button(title: "Open") { open(row) },
-    ///      .separator,
-    ///      .button(title: "Delete", isEnabled: row.isDeletable) { delete(row) }]
+    ///      .button(title: "Delete \(selection.count)", isEnabled: !selection.isEmpty) { delete(selection) }]
     /// }
     /// ```
-    public func rowContextMenu(_ items: @escaping (Item) -> [MenuItem]) -> Self {
+    public func rowContextMenu(_ items: @escaping (Item, Set<Item.ID>) -> [MenuItem]) -> Self {
         copy { $0.contextMenu = items }
     }
 
@@ -288,6 +325,17 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         }
     }
 
+    /// Shows `content` when the list has no rows instead of an empty table or list.
+    ///
+    /// ```swift
+    /// .emptyState {
+    ///     ContentUnavailableView("No results", systemImage: "magnifyingglass")
+    /// }
+    /// ```
+    public func emptyState<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> Self {
+        copy { $0.emptyStateContent = { AnyView(content()) } }
+    }
+
     private func copy(_ mutate: (inout FastListConfiguration<Item>) -> Void) -> Self {
         var copy = self
         mutate(&copy.configuration)
@@ -301,12 +349,12 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         Coordinator(self)
     }
 
-    public func makeNSView(context: Context) -> NSScrollView {
+    public func makeNSView(context: Context) -> FastListContainerView {
         let table = KeyHandlingTableView()
         table.headerView = nil
         table.style = .inset
         table.usesAutomaticRowHeights = true
-        table.allowsMultipleSelection = true
+        configureSelection(for: table)
         table.allowsEmptySelection = true
         table.selectionHighlightStyle = .regular
         table.backgroundColor = .clear
@@ -320,8 +368,9 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         // Returns whether the press was consumed; `false` lets the table fall through to
         // `super.keyDown(with:)` so the responder chain still sees Return.
         table.onReturn = { [weak coordinator = context.coordinator] in coordinator?.handleReturn() ?? false }
+        table.onSelectAll = { [weak coordinator = context.coordinator] in coordinator?.handleSelectAll() ?? false }
 
-        // Drive the right-click menu through the table's own `menu` property (populated
+        // Drive the right-click menu
         // lazily in `menuNeedsUpdate`) rather than overriding `menu(for:)`, so AppKit's
         // native contextual-menu machinery runs and draws the focus-ring outline around a
         // right-clicked row that isn't selected. Only install it when a menu is configured,
@@ -333,27 +382,30 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         context.coordinator.tableView = table
         context.coordinator.reloadIfNeeded(items, force: true)
 
-        let scroll = NSScrollView()
-        scroll.documentView = table
-        scroll.hasVerticalScroller = true
-        scroll.drawsBackground = false
+        let container = FastListContainerView(frame: .zero)
+        container.scrollView.documentView = table
+        container.scrollView.hasVerticalScroller = true
+        container.scrollView.drawsBackground = false
+        context.coordinator.containerView = container
         // Track every bounds change (wheel, scrollbar, keyboard, and trackpad) plus the final
         // settled position after live scrolling. The coordinator owns the observer lifecycle so
         // SwiftUI dismantling can explicitly remove both registrations.
-        context.coordinator.installScrollObservers(for: scroll)
-        return scroll
+        context.coordinator.installScrollObservers(for: container.scrollView)
+        return container
     }
 
-    public static func dismantleNSView(_ nsView: NSScrollView, coordinator: Coordinator) {
+    public static func dismantleNSView(_ container: FastListContainerView, coordinator: Coordinator) {
         coordinator.removeScrollObservers()
         coordinator.tableView = nil
-        nsView.documentView = nil
+        coordinator.containerView = nil
+        container.scrollView.documentView = nil
     }
 
-    public func updateNSView(_: NSScrollView, context: Context) {
+    public func updateNSView(_ container: FastListContainerView, context: Context) {
         let coordinator = context.coordinator
         coordinator.parent = self
         guard let table = coordinator.tableView else { return }
+        configureSelection(for: table)
         coordinator.updateContextMenuRegistration(on: table)
         coordinator.updateDragRegistration(on: table)
 
@@ -362,6 +414,9 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         coordinator.reloadIfNeeded(items, force: false)
         coordinator.applySelection(selection)
 
+        let showsEmpty = items.isEmpty && configuration.emptyStateContent != nil
+        container.updateEmptyState(configuration.emptyStateContent?(), isVisible: showsEmpty)
+
         // Honors the documented "scrolls a row into view *once*" contract: the coordinator
         // remembers the last id it scrolled to and declines repeats, so a caller who stores
         // the anchor persistently (and so never clears it via `then`) doesn't have every
@@ -369,6 +424,19 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         if coordinator.scrollToTargetIfNeeded(table) {
             DispatchQueue.main.async { configuration.onScrolledToID?() }
         }
+    }
+
+    /// Matches the table's AppKit selection behavior to the initializer the caller used.
+    ///
+    /// `.single` blocks shift/command-click, so a multi-row selection - which a
+    /// `Binding<Item.ID?>` cannot represent - is impossible to form in the first place.
+    /// `.none` additionally refuses selection outright via the coordinator's
+    /// `selectionShouldChange(in:)` / `tableView(_:shouldSelectRow:)`, so a click leaves no
+    /// highlight at all. (`NSTableView` has no `isSelectable`; the delegate is the supported
+    /// way to make a table non-selectable, and unlike `allowsEmptySelection` juggling it also
+    /// covers Select All and keyboard navigation.)
+    func configureSelection(for table: NSTableView) {
+        table.allowsMultipleSelection = configuration.selectionMode == .multiple
     }
 
     #endif
@@ -398,6 +466,17 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     /// Return share the same modifiers as the macOS backend.
     extension FastList: View {
         public var body: some View {
+            Group {
+                if items.isEmpty, let emptyStateContent = configuration.emptyStateContent {
+                    emptyStateContent()
+                } else {
+                    nativeListBody
+                }
+            }
+        }
+
+        @ViewBuilder
+        private var nativeListBody: some View {
             // Note: no `selection:` binding on the `List`. A selection-bound `List` in a
             // `NavigationSplitView` content column draws the system's emphasized selection on
             // the focused cell - a saturated blue focus ring plus a vibrant text recolor that
@@ -490,6 +569,21 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             onReachEnd()
         }
 
+        private func handleNativeRowTap(_ item: Item) {
+            guard configuration.selectionMode != .none else { return }
+            #if os(iOS)
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                if selection.contains(item.id) {
+                    selection.remove(item.id)
+                } else {
+                    selection.insert(item.id)
+                }
+                return
+            }
+            #endif
+            selection = [item.id]
+        }
+
         private func reconcileSelection() {
             let reconciled = reconciledFastListSelection(selection, items: items)
             if reconciled != selection { selection = reconciled }
@@ -564,7 +658,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         private func row(for item: Item, at index: Int) -> some View {
             let leading = configuration.leadingSwipe?(item) ?? []
             let trailing = configuration.trailingSwipe?(item) ?? []
-            let menu = configuration.contextMenu?(item) ?? []
+            let menu = configuration.contextMenu?(item, selection) ?? []
             let isSelected = selection.contains(item.id)
             let positioned = configuration.accessibilityIncludesRowPosition
                 ? AnyView(rowContent(item).accessibilityValue("\(index + 1) of \(items.count)"))
@@ -580,6 +674,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             let base = rowContent(item)
                 .contentShape(.rect)
                 .onTapGesture {
+                    guard configuration.selectionMode != .none else { return }
                     selection = [item.id]
                 }
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -591,7 +686,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                     configuration.onDoubleClick?(item)
                 }
                 .onTapGesture(count: 1) {
-                    selection = [item.id]
+                    handleNativeRowTap(item)
                 }
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
                 .listRowBackground(selectionBackground(isSelected: isSelected))

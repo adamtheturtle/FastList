@@ -8,6 +8,21 @@
 #endif
 import SwiftUI
 
+/// How many rows a ``FastList`` lets the user select.
+///
+/// Chosen by the initializer the caller uses rather than by a modifier, so the table's
+/// AppKit selection behavior always matches the shape of the binding that drives it.
+public enum FastListSelectionMode: Sendable {
+    /// No selection at all: the table is not selectable, so a click can't leave a
+    /// highlight behind. Used by the `init(_:row:)` initializer, which has no binding.
+    case none
+    /// Exactly one row at a time. Used by the `Binding<Item.ID?>` initializer, whose
+    /// binding cannot represent more than one selected row.
+    case single
+    /// Any number of rows. Used by the `Binding<Set<Item.ID>>` initializer.
+    case multiple
+}
+
 /// The platform-neutral role of a list action.
 ///
 /// `FastList` owns translating the role into native AppKit or SwiftUI presentation. The
@@ -76,11 +91,14 @@ public enum MenuItem {
 /// The optional behaviors layered onto a ``FastList`` by its modifiers. Internal; callers
 /// configure it through the fluent modifier methods on ``FastList``.
 struct FastListConfiguration<Item: Identifiable> {
+    /// How many rows the user may select. Set by the initializer, not by a modifier: it is a
+    /// property of the binding's shape, so it can't be changed independently of it.
+    var selectionMode: FastListSelectionMode = .multiple
     var onDoubleClick: ((Item) -> Void)?
     var onReturnKey: ((Item) -> Void)?
     var leadingSwipe: ((Item) -> [SwipeAction])?
     var trailingSwipe: ((Item) -> [SwipeAction])?
-    var contextMenu: ((Item) -> [MenuItem])?
+    var contextMenu: ((Item, Set<Item.ID>) -> [MenuItem])?
     // The drag payload/session callbacks are typed in AppKit (NSPasteboardItem /
     // NSDraggingSession), so they exist only on macOS.
     #if os(macOS)
@@ -102,4 +120,6 @@ struct FastListConfiguration<Item: Identifiable> {
     var rowContentID: AnyHashable?
     var accessibilityIncludesRowPosition = false
     var accessibilityAnnouncesSelectionChanges = false
+    /// Shown instead of the list when `items` is empty.
+    var emptyStateContent: (() -> AnyView)?
 }

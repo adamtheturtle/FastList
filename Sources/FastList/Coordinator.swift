@@ -12,6 +12,7 @@ extension FastList {
     public final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
         var parent: FastList
         weak var tableView: NSTableView?
+        weak var containerView: FastListContainerView?
         private(set) weak var observedScrollView: NSScrollView?
         private var items: [Item] = []
         private var indexByID: [Item.ID: Int] = [:]
@@ -98,6 +99,12 @@ extension FastList {
         public func tableView(_ tableView: NSTableView, viewFor _: NSTableColumn?, row: Int) -> NSView? {
             let cell = tableView.makeView(withIdentifier: .fastListCell, owner: self) as? HostingCellView
                 ?? HostingCellView(identifier: .fastListCell)
+            cell.rowIndex = row
+            cell.enclosingTableView = tableView
+            cell.onHeightChange = { [weak cell, weak tableView] in
+                guard let cell, let tableView else { return }
+                tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: cell.rowIndex))
+            }
             var content = parent.rowContent(items[row])
             if parent.configuration.accessibilityIncludesRowPosition {
                 content = AnyView(
@@ -133,6 +140,19 @@ extension FastList {
         }
 
         // MARK: Selection
+
+        /// Refuses selection when the list was created without a binding, so AppKit never
+        /// draws a highlight, rather than drawing one and relying on a write-back that a
+        /// binding with nowhere to write can never undo.
+        public func selectionShouldChange(in _: NSTableView) -> Bool {
+            parent.configuration.selectionMode != .none
+        }
+
+        /// Backstop for the programmatic selection paths that bypass
+        /// ``selectionShouldChange(in:)``, so a non-selectable list stays non-selectable.
+        public func tableView(_: NSTableView, shouldSelectRow _: Int) -> Bool {
+            parent.configuration.selectionMode != .none
+        }
 
         /// Push the binding's selection into the table without echoing it back.
         func applySelection(_ ids: Set<Item.ID>) {
@@ -189,6 +209,13 @@ extension FastList {
                   items.indices.contains(row) else { return false }
 
             onReturnKey(items[row])
+            return true
+        }
+
+        @discardableResult
+        func handleSelectAll() -> Bool {
+            guard let tableView, tableView.allowsMultipleSelection, !items.isEmpty else { return false }
+            applySelection(Set(items.map(\.id)))
             return true
         }
 
@@ -338,7 +365,7 @@ extension FastList {
 
             let itemID = items[row].id
             menu.autoenablesItems = false
-            for (entryIndex, entry) in builder(items[row]).enumerated() {
+            for (entryIndex, entry) in builder(items[row], parent.selection).enumerated() {
                 switch entry {
                 case .separator:
                     menu.addItem(.separator())
@@ -360,7 +387,7 @@ extension FastList {
             guard let row = indexByID[itemID], items.indices.contains(row),
                   let builder = parent.configuration.contextMenu else { return }
 
-            let entries = builder(items[row])
+            let entries = builder(items[row], parent.selection)
             guard entries.indices.contains(entryIndex),
                   case let .button(title, isEnabled, _, action) = entries[entryIndex],
                   expectedTitle == nil || title == expectedTitle,
