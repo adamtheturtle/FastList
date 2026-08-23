@@ -363,6 +363,16 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.onMoveRows = action }
     }
 
+
+    /// Toggles native list editing mode.
+    ///
+    /// On iOS / iPadOS this sets `EditMode.active` so swipe-to-delete and `onMove` reorder
+    /// controls appear. On macOS the flag is stored for source compatibility; AppKit tables
+    /// do not use a global edit mode.
+    public func editing(_ isEditing: Bool) -> Self {
+        copy { $0.isEditing = isEditing }
+    }
+
     /// Draws alternating row backgrounds on every second row.
     public func alternatingRowBackgrounds(_ enabled: Bool = true) -> Self {
         copy { $0.alternatingRowBackgrounds = enabled }

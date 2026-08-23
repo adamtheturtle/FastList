@@ -168,4 +168,7 @@ struct FastListConfiguration<Item: Identifiable> {
     var listStyle: FastListStyle = .inset
     /// Called when the user reorders rows. Arguments match SwiftUI `onMove`.
     var onMoveRows: ((IndexSet, Int) -> Void)?
+    /// When `true`, the native list enters an editing mode (reorder/delete chrome on iOS).
+    var isEditing = false
 }
+
