@@ -494,12 +494,17 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     // MARK: View (iOS / iPadOS)
 
     /// Vertical bounds of each visible row in the list coordinate space.
+    private struct NativeVisibleRowBounds: Equatable {
+        var minY: CGFloat
+        var maxY: CGFloat
+    }
+
     private enum NativeVisibleRowBoundsKey: PreferenceKey {
-        static var defaultValue: [Int: (minY: CGFloat, maxY: CGFloat)] { [:] }
+        static var defaultValue: [Int: NativeVisibleRowBounds] { [:] }
 
         static func reduce(
-            value: inout [Int: (minY: CGFloat, maxY: CGFloat)],
-            nextValue: () -> [Int: (minY: CGFloat, maxY: CGFloat)]
+            value: inout [Int: NativeVisibleRowBounds],
+            nextValue: () -> [Int: NativeVisibleRowBounds]
         ) {
             value.merge(nextValue(), uniquingKeysWith: { $1 })
         }
@@ -566,7 +571,12 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                                         )
                                         .preference(
                                             key: NativeVisibleRowBoundsKey.self,
-                                            value: [indexedItem.offset: (minY: frame.minY, maxY: frame.maxY)]
+                                            value: [
+                                                indexedItem.offset: NativeVisibleRowBounds(
+                                                    minY: frame.minY,
+                                                    maxY: frame.maxY
+                                                ),
+                                            ]
                                         )
                                 }
                             }
@@ -706,7 +716,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             configuration.onTopRowChange?(id)
         }
 
-        private func reportNativeVisibleRange(from bounds: [Int: (minY: CGFloat, maxY: CGFloat)]) {
+        private func reportNativeVisibleRange(from bounds: [Int: NativeVisibleRowBounds]) {
             guard configuration.onVisibleRowRangeChange != nil else { return }
             guard !items.isEmpty else { return }
 
