@@ -1,0 +1,35 @@
+name: Benchmark
+
+on:
+  schedule:
+    # Weekly Monday 06:15 UTC
+    - cron: "15 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  selection-benchmark:
+    name: Selection benchmark (macOS)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate benchmark project
+        working-directory: Benchmark
+        run: xcodegen generate
+
+      - name: Run UI benchmark
+        working-directory: Benchmark
+        run: >-
+          xcodebuild test
+          -project FastListBenchmark.xcodeproj
+          -scheme FastListBenchmark
+          -destination 'platform=macOS'
+          -derivedDataPath "$RUNNER_TEMP/FastList-Benchmark"
+          CODE_SIGNING_ALLOWED=NO

@@ -1,0 +1,50 @@
+name: FastListBenchmark
+options:
+  bundleIdPrefix: com.fastlist.benchmark
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+
+packages:
+  FastList:
+    path: ..
+
+targets:
+  BenchApp:
+    type: application
+    platform: macOS
+    sources: [App]
+    dependencies:
+      - package: FastList
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.fastlist.benchmark.app
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+
+  BenchUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources: [UITests]
+    dependencies:
+      - target: BenchApp
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.fastlist.benchmark.uitests
+        SWIFT_VERSION: "5.9"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+
+schemes:
+  FastListBenchmark:
+    build:
+      targets:
+        BenchApp: all
+        BenchUITests: [test]
+    test:
+      targets: [BenchUITests]
