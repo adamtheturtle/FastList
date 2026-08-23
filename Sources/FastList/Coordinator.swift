@@ -106,6 +106,7 @@ extension FastList {
             if reconciledSelection != parent.selection { parent.selection = reconciledSelection }
             if newItems.isEmpty { reportTopRow(nil) }
             if changed { lastPrefetchedThroughRow = -1 }
+            if newItems.isEmpty { lastVisibleRowRange = nil }
             guard changed else { return }
 
             isApplyingSnapshot = true
