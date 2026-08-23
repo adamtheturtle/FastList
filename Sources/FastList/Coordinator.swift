@@ -35,6 +35,8 @@ extension FastList {
         private var lastScrolledToID: Item.ID?
         /// De-dupes ``onVisibleRowRangeChange`` callbacks.
         private var lastVisibleRowRange: ClosedRange<Int>?
+        /// The highest row index included in the last prefetch callback.
+        private var lastPrefetchedThroughRow = -1
 
         init(_ parent: FastList) {
             self.parent = parent
@@ -266,6 +268,22 @@ extension FastList {
             } else {
                 reachEndGate.reset()
             }
+
+            prefetchIfNeeded(lastVisibleRow: NSMaxRange(visible) - 1)
+        }
+
+        private func prefetchIfNeeded(lastVisibleRow: Int) {
+            guard let onPrefetchRows = parent.configuration.onPrefetchRows,
+                  items.indices.contains(lastVisibleRow) else { return }
+
+            let target = min(lastVisibleRow + parent.configuration.prefetchRowCount, items.count - 1)
+            guard target > lastPrefetchedThroughRow else { return }
+
+            let start = lastPrefetchedThroughRow + 1
+            guard start <= target else { return }
+
+            lastPrefetchedThroughRow = target
+            onPrefetchRows(Array(items[start ... target]))
         }
 
         /// Reports a changed top-row identity. Keeping the last non-empty ID lets a later

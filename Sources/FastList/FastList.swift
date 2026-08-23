@@ -91,6 +91,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         /// Honors ``scrollToRow(id:then:)`` once until the target is cleared, matching macOS.
         @State private var lastHonoredScrollToID: Item.ID?
         @State private var lastNativeVisibleRange: ClosedRange<Int>?
+        @State private var lastPrefetchedThroughRow = -1
     #endif
 
     // MARK: Initializers
@@ -335,6 +336,21 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.onVisibleRowRangeChange = action }
     }
 
+    /// Prefetches upcoming rows when the viewport nears rows that are not yet loaded.
+    ///
+    /// ```swift
+    /// .onPrefetchRows(count: 20) { upcoming in warmCache(for: upcoming) }
+    /// ```
+    public func onPrefetchRows(
+        count: Int = 10,
+        perform: @escaping (_ upcoming: [Item]) -> Void
+    ) -> Self {
+        copy {
+            $0.prefetchRowCount = count
+            $0.onPrefetchRows = perform
+        }
+    }
+
     private func copy(_ mutate: (inout FastListConfiguration<Item>) -> Void) -> Self {
         var copy = self
         mutate(&copy.configuration)
@@ -560,6 +576,21 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
 
             nativeReachEndGate = gate
             onReachEnd()
+            prefetchNativeRowsIfNeeded(lastVisibleRow: lastVisibleRow)
+        }
+
+        private func prefetchNativeRowsIfNeeded(lastVisibleRow: Int) {
+            guard let onPrefetchRows = configuration.onPrefetchRows,
+                  items.indices.contains(lastVisibleRow) else { return }
+
+            let target = min(lastVisibleRow + configuration.prefetchRowCount, items.count - 1)
+            guard target > lastPrefetchedThroughRow else { return }
+
+            let start = lastPrefetchedThroughRow + 1
+            guard start <= target else { return }
+
+            lastPrefetchedThroughRow = target
+            onPrefetchRows(Array(items[start ... target]))
         }
 
         private func handleNativeRowTap(_ item: Item) {
