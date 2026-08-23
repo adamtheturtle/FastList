@@ -10,7 +10,7 @@ FastList exposes one modifier surface. Behavior is implemented by the AppKit
 | Context menu | Yes (native `NSMenu`) | Yes (SwiftUI context menu) |
 | `onDoubleClick` | Yes | Yes (pointer double-tap) |
 | `onReturnKey` | Yes | Yes (hardware keyboard) |
-| `onRowDrag` / drag session | Yes (AppKit pasteboard) | Not available |
+| `onRowDrag` / drag session | Yes (AppKit pasteboard) | Yes (`NSItemProvider` / `.onDrag`) |
 | `onTopRowChange` | Yes (scroll bounds) | Yes (visible-row preference) |
 | `scrollToRow(id:then:)` | Yes | Yes (`ScrollViewReader`) |
 | `onReachEnd` | Yes | Yes (row `onAppear` + shared gate) |
