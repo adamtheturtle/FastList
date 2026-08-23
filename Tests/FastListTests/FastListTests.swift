@@ -1107,3 +1107,39 @@ private extension NSEvent {
         #expect(!base.configuration.isEditing)
     }
 }
+
+@MainActor
+@Suite struct FastListNavigationSplitSyncTests {
+    private struct Row: Identifiable {
+        let id: Int
+    }
+
+    @Test func navigationSplitSelectionSyncStoresFlag() {
+        let base = FastList([Row(id: 1)], selection: .constant([])) { _ in Text("row") }
+        #expect(!base.configuration.usesNativeSelectionBinding)
+        let synced = base.navigationSplitSelectionSync()
+        #expect(synced.configuration.usesNativeSelectionBinding)
+        #expect(!base.configuration.usesNativeSelectionBinding)
+    }
+}
+    private struct Row: Identifiable {
+        let id: Int
+    }
+
+<<<<<<< HEAD
+    @Test func editingModifierStoresFlag() {
+        let base = FastList([Row(id: 1)], selection: .constant([])) { _ in Text("row") }
+        #expect(!base.configuration.isEditing)
+        let editing = base.editing(true)
+        #expect(editing.configuration.isEditing)
+        #expect(!base.configuration.isEditing)
+=======
+    @Test func navigationSplitSelectionSyncStoresFlag() {
+        let base = FastList([Row(id: 1)], selection: .constant([])) { _ in Text("row") }
+        #expect(!base.configuration.usesNativeSelectionBinding)
+        let synced = base.navigationSplitSelectionSync()
+        #expect(synced.configuration.usesNativeSelectionBinding)
+        #expect(!base.configuration.usesNativeSelectionBinding)
+>>>>>>> 1ee427c (Sync selection with NavigationSplitView via List binding)
+    }
+}

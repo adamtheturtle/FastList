@@ -386,6 +386,16 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.isEditing = isEditing }
     }
 
+
+    /// Uses the platform `List` selection binding so selection stays synchronized when the
+    /// list is the leading column of a `NavigationSplitView`.
+    ///
+    /// Prefer this for sidebar columns. Content columns that need the custom inset highlight
+    /// (to avoid full-bleed selection behind the sidebar) should leave this off.
+    public func navigationSplitSelectionSync(_ enabled: Bool = true) -> Self {
+        copy { $0.usesNativeSelectionBinding = enabled }
+    }
+
     /// Draws alternating row backgrounds on every second row.
     public func alternatingRowBackgrounds(_ enabled: Bool = true) -> Self {
         copy { $0.alternatingRowBackgrounds = enabled }
@@ -718,8 +728,9 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             // we render the highlight entirely via `selectionBackground`, so the selected row
             // keeps normal, readable text and no ring.
             ScrollViewReader { proxy in
-                List {
+                nativeSelectionList {
                     nativeSectionedRows
+                }
                 }
                 // `.plain`, with a custom selection background (see `selectionBackground`).
                 // The earlier `.sidebar` style insets selection nicely when the list IS the
@@ -845,6 +856,23 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
                     consumeNativeReachEnd(lastVisibleRow: index)
                     prefetchNativeRowsIfNeeded(lastVisibleRow: index)
                 }
+        }
+
+
+
+        @ViewBuilder
+        private func nativeSelectionList<Content: View>(
+            @ViewBuilder content: () -> Content
+        ) -> some View {
+            if configuration.usesNativeSelectionBinding, configuration.selectionMode != .none {
+                List(selection: $selection) {
+                    content()
+                }
+            } else {
+                List {
+                    content()
+                }
+            }
         }
 
         private func announceNativeSelectionChange(count: Int) {
@@ -1063,7 +1091,15 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
 
         @ViewBuilder
         private func rowWithTapGestures(for item: Item, positioned: AnyView, isSelected _: Bool) -> some View {
-            if let onDoubleClick = configuration.onDoubleClick {
+            if configuration.usesNativeSelectionBinding {
+                if let onDoubleClick = configuration.onDoubleClick {
+                    positioned
+                        .contentShape(.rect)
+                        .onTapGesture(count: 2) { onDoubleClick(item) }
+                } else {
+                    positioned
+                }
+            } else if let onDoubleClick = configuration.onDoubleClick {
                 positioned
                     .contentShape(.rect)
                     .onTapGesture(count: 2) {

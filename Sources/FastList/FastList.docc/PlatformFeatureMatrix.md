@@ -6,6 +6,7 @@ FastList exposes one modifier surface. Behavior is implemented by the AppKit
 | Capability | macOS | iOS / iPadOS |
 | --- | --- | --- |
 | Multi-selection binding | Yes | Yes (tap-driven highlight) |
+| `navigationSplitSelectionSync` | Accepted | Yes (`List(selection:)`) |
 | Swipe actions | Yes (`NSTableViewRowAction`) | Yes (SwiftUI swipe actions) |
 | Context menu | Yes (native `NSMenu`) | Yes (SwiftUI context menu) |
 | `onDoubleClick` | Yes | Yes (pointer double-tap) |

@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.editing(_:)` to drive iOS `EditMode` for inline reorder/delete chrome.
 - Demo pull-to-refresh via MacPullToRefresh.
 - macOS `.onRowDrop` for drop destinations and row reorder targets.
+- `.navigationSplitSelectionSync()` for `List(selection:)` sync in split views.
 - Shared `FastListReachEndGate` for once-per-row-count paging on macOS and iOS.
 - iOS / iPadOS `onReachEnd` wiring on the native SwiftUI `List` backend.
 - Vale prose lint and Dependabot auto-merge for GitHub Actions.
