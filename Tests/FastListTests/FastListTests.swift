@@ -795,6 +795,28 @@ private extension NSEvent {
         #expect(table.style == .plain)
     }
 
+    @Test func swipeActionsPreserveMoreThanTwoButtonsPerEdge() {
+        let actions = [
+            SwipeAction(title: "One") {},
+            SwipeAction(title: "Two") {},
+            SwipeAction(title: "Three") {}
+        ]
+        let list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) { _ in actions }
+
+        #expect(list.configuration.allowsFullSwipe == false)
+        let built = list.configuration.trailingSwipe?(Row(id: 1, name: "a")) ?? []
+        #expect(built.map(\.title) == ["One", "Two", "Three"])
+
+        let coordinator = list.makeCoordinator()
+        let table = NSTableView()
+        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
+        coordinator.tableView = table
+        coordinator.reloadIfNeeded(list.items, force: true)
+        let rowActions = coordinator.tableView(table, rowActionsForRow: 0, edge: .trailing)
+        #expect(rowActions.map(\.title) == ["One", "Two", "Three"])
+    }
+
     @Test func swipeEdgeRoutesToTheRightSlot() {
         let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
         let leading = base.swipeActions(edge: .leading) { _ in [SwipeAction(title: "Flag") {}] }

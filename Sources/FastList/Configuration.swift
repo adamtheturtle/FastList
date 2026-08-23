@@ -120,6 +120,8 @@ struct FastListConfiguration<Item: Identifiable> {
     var onReturnKey: ((Item) -> Void)?
     var leadingSwipe: ((Item) -> [SwipeAction])?
     var trailingSwipe: ((Item) -> [SwipeAction])?
+    /// When `true`, a full swipe on iOS performs the first trailing/leading action.
+    var allowsFullSwipe = true
     var contextMenu: ((Item, Set<Item.ID>) -> [MenuItem])?
     // The drag payload/session callbacks are typed in AppKit (NSPasteboardItem /
     // NSDraggingSession), so they exist only on macOS.
