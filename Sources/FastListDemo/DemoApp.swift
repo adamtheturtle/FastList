@@ -56,45 +56,57 @@ private struct ContentView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            FastList(visible, selection: $selection) { contact in
-                row(contact)
-                    .allowsHitTesting(false)
-            }
-            .onDoubleClick { open($0) }
-            .onReturnKey { open($0) }
-            .swipeActions(edge: .leading) { contact in
-                [SwipeAction(title: "Flag", tint: .yellow, systemImage: "flag.fill") { toggleFlag(contact) }]
-            }
-            .swipeActions(edge: .trailing) { contact in
-                [SwipeAction(title: "Delete", role: .destructive, systemImage: "trash") { delete(contact) }]
-            }
-            .rowContextMenu { contact, selection in
-                let deleteIDs = selection.isEmpty ? Set([contact.id]) : selection
-                return [
-                    .button(title: contact.isFlagged ? "Unflag" : "Flag") { toggleFlag(contact) },
-                    .separator,
-                    .button(
-                        title: "Delete \(deleteIDs.count)",
-                        isEnabled: !deleteIDs.isEmpty
-                    ) { deleteSelected(deleteIDs) }
-                ]
-            }
-            #if os(macOS)
-            .onRowDrag { contact in
-                let item = NSPasteboardItem()
-                item.setString("contact:\(contact.id)", forType: .string)
-                return item
-            }
-            .onDragSession(
-                began: { _ in lastOpened = "Dragging \(selection.count) row(s)…" },
-                ended: { lastOpened = "-" }
-            )
-            #endif
-            .onTopRowChange { scrollAnchor = $0 }
-            .scrollToRow(id: restoreAnchor) { restoreAnchor = nil }
-            .onReachEnd(threshold: 20) { loadNextPage() }
-            .rowContentID(rowContentRevision)
+            listWithPaging
         }
+    }
+
+    @ViewBuilder
+    private var listWithPaging: some View {
+        let list = configuredList
+        if query.isEmpty {
+            list.onReachEnd(threshold: 20) { loadNextPage() }
+        } else {
+            list
+        }
+    }
+
+    private var configuredList: some View {
+        FastList(visible, selection: $selection) { contact in
+            row(contact)
+                .allowsHitTesting(false)
+        }
+        .onDoubleClick { open($0) }
+        .onReturnKey { open($0) }
+        .swipeActions(edge: .leading) { contact in
+            [SwipeAction(title: "Flag", tint: .yellow, systemImage: "flag.fill") { toggleFlag(contact) }]
+        }
+        .swipeActions(edge: .trailing) { contact in
+            [SwipeAction(title: "Delete", role: .destructive, systemImage: "trash") { delete(contact) }]
+        }
+        .rowContextMenu { contact, _ in
+            [
+                .button(title: contact.isFlagged ? "Unflag" : "Flag") { toggleFlag(contact) },
+                .separator,
+                .button(
+                    title: "Delete \(selection.count)",
+                    isEnabled: !selection.isEmpty
+                ) { deleteSelected(selection) }
+            ]
+        }
+        #if os(macOS)
+        .onRowDrag { contact in
+            let item = NSPasteboardItem()
+            item.setString("contact:\(contact.id)", forType: .string)
+            return item
+        }
+        .onDragSession(
+            began: { _ in lastOpened = "Dragging \(selection.count) row(s)…" },
+            ended: { lastOpened = "-" }
+        )
+        #endif
+        .onTopRowChange { scrollAnchor = $0 }
+        .scrollToRow(id: restoreAnchor) { restoreAnchor = nil }
+        .rowContentID(rowContentRevision)
     }
 
     private var header: some View {
@@ -164,9 +176,6 @@ private struct ContentView: View {
     }
 
     private func loadNextPage() {
-        // Skip paging while filtering: the visible slice is not the loaded corpus tail.
-        guard query.isEmpty else { return }
-
         let page = (nextID ..< (nextID + Self.pageSize)).map(Self.makeContact)
         contacts.append(contentsOf: page)
         nextID += Self.pageSize
