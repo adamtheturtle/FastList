@@ -1,6 +1,6 @@
 import SwiftUI
 import Testing
-@testable import FastList
+@_spi(FastListTesting) @testable import FastList
 
 #if os(macOS)
 import AppKit
@@ -662,6 +662,22 @@ private extension NSEvent {
     /// Regression test for the single-selection binding collapsing a multi-row selection to an
     /// arbitrary (hash-ordered) row: the table must be single-selection so the multi-row
     /// selection can never form.
+
+    @Test func shiftRangeSelectionRequiresMultipleMode() {
+        var selected: Int? = 1
+        let binding = Binding<Int?>(get: { selected }, set: { selected = $0 })
+        let single = FastList([Row(id: 1, name: "a"), Row(id: 2, name: "b")], selection: binding) {
+            Text($0.name)
+        }
+        #expect(!single.makeCoordinator().testingAllowsShiftRangeSelection)
+
+        let multiple = FastList(
+            [Row(id: 1, name: "a"), Row(id: 2, name: "b")],
+            selection: .constant(Set<Int>())
+        ) { Text($0.name) }
+        #expect(multiple.makeCoordinator().testingAllowsShiftRangeSelection)
+    }
+
     @Test func singleSelectionBindingUsesSingleSelectionMode() {
         var selected: Int?
         let binding = Binding<Int?>(get: { selected }, set: { selected = $0 })

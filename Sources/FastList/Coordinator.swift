@@ -37,6 +37,11 @@ extension FastList {
         /// Anchor for shift-click range selection.
         private var selectionAnchorRow: Int?
 
+        @_spi(FastListTesting)
+        public var testingAllowsShiftRangeSelection: Bool {
+            parent.configuration.selectionMode == .multiple
+        }
+
         init(_ parent: FastList) {
             self.parent = parent
         }
@@ -174,7 +179,10 @@ extension FastList {
             guard parent.configuration.selectionMode != .none else { return false }
             guard items.indices.contains(row) else { return false }
 
-            if NSEvent.modifierFlags.contains(.shift), let anchor = selectionAnchorRow, anchor >= 0 {
+            if parent.configuration.selectionMode == .multiple,
+               NSEvent.modifierFlags.contains(.shift),
+               let anchor = selectionAnchorRow,
+               anchor >= 0 {
                 let range = min(anchor, row) ... max(anchor, row)
                 isApplyingSelection = true
                 tableView.selectRowIndexes(IndexSet(integersIn: range), byExtendingSelection: false)
