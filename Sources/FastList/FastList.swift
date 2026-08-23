@@ -467,6 +467,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         coordinator.parent = self
         guard let table = coordinator.tableView else { return }
         configureSelection(for: table)
+        applyFocusRing(to: table)
         table.usesAlternatingRowBackgroundColors = configuration.alternatingRowBackgrounds
         coordinator.updateContextMenuRegistration(on: table)
         coordinator.updateDragRegistration(on: table)
