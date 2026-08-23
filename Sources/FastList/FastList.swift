@@ -151,18 +151,16 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         }
     }
 
-    /// Adds a native right-click menu to every row. The closure runs per right-clicked row,
-    /// so you can build single-row or multi-selection menus by reading your own selection
-    /// state.
+    /// Adds a native right-click menu to every row. The closure receives the clicked row and
+    /// the current selection set so you can build single-row or multi-selection menus.
     ///
     /// ```swift
-    /// .rowContextMenu { row in
+    /// .rowContextMenu { row, selection in
     ///     [.button(title: "Open") { open(row) },
-    ///      .separator,
-    ///      .button(title: "Delete", isEnabled: row.isDeletable) { delete(row) }]
+    ///      .button(title: "Delete \(selection.count)", isEnabled: !selection.isEmpty) { delete(selection) }]
     /// }
     /// ```
-    public func rowContextMenu(_ items: @escaping (Item) -> [MenuItem]) -> Self {
+    public func rowContextMenu(_ items: @escaping (Item, Set<Item.ID>) -> [MenuItem]) -> Self {
         copy { $0.contextMenu = items }
     }
 
@@ -586,7 +584,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         private func row(for item: Item) -> some View {
             let leading = configuration.leadingSwipe?(item) ?? []
             let trailing = configuration.trailingSwipe?(item) ?? []
-            let menu = configuration.contextMenu?(item) ?? []
+            let menu = configuration.contextMenu?(item, selection) ?? []
             let isSelected = selection.contains(item.id)
             // Drive selection on tap rather than via a `List(selection:)` binding, so the
             // row shows our own highlight without the system's focused-cell ring / text

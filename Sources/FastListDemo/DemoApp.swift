@@ -65,7 +65,7 @@ private struct ContentView: View {
             .swipeActions(edge: .trailing) { contact in
                 [SwipeAction(title: "Delete", role: .destructive, systemImage: "trash") { delete(contact) }]
             }
-            .rowContextMenu { contact in
+            .rowContextMenu { contact, _ in
                 [
                     .button(title: contact.isFlagged ? "Unflag" : "Flag") { toggleFlag(contact) },
                     .separator,
