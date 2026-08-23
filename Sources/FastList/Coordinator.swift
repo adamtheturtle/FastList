@@ -37,6 +37,8 @@ extension FastList {
         private var lastScrolledToID: Item.ID?
         /// The highest row index included in the last prefetch callback.
         private var lastPrefetchedThroughRow = -1
+        /// De-dupes ``onVisibleRowRangeChange`` callbacks.
+        private var lastVisibleRowRange: ClosedRange<Int>?
         private var hoveredRow = -1
         /// Anchor for shift-click range selection.
         private var selectionAnchorRow: Int?
@@ -315,6 +317,14 @@ extension FastList {
 
             let visible = tableView.rows(in: tableView.visibleRect)
             guard visible.length > 0 else { return }
+
+            if let onVisibleRowRangeChange = parent.configuration.onVisibleRowRangeChange {
+                let range = visible.location ... (visible.location + visible.length - 1)
+                if range != lastVisibleRowRange {
+                    lastVisibleRowRange = range
+                    onVisibleRowRangeChange(range)
+                }
+            }
 
             if let onTopRowChange = parent.configuration.onTopRowChange,
                items.indices.contains(visible.location) {
