@@ -241,6 +241,23 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.contextMenu = items }
     }
 
+    /// Adds a native right-click menu to every row, ignoring the current selection.
+    ///
+    /// This is the 0.9.0 signature, kept so existing single-row menu builders keep
+    /// compiling. Use the overload that also receives the selection set when the
+    /// menu depends on the selection.
+    ///
+    /// ```swift
+    /// .rowContextMenu { row in
+    ///     [.button(title: "Open") { open(row) }]
+    /// }
+    /// ```
+    public func rowContextMenu(_ items: @escaping (Item) -> [MenuItem]) -> Self {
+        copy { configuration in
+            configuration.contextMenu = { item, _ in items(item) }
+        }
+    }
+
     /// Makes rows draggable. Return the pasteboard payload for a row, or `nil` to make that
     /// row non-draggable.
     ///
