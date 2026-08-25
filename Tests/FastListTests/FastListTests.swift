@@ -455,6 +455,17 @@ private final class SnapshotReloadTableView: NSTableView {
         #expect(opened == ["original", "replacement"])
     }
 
+    @Test func singleArgumentRowContextMenuStillBuildsMenus() {
+        var opened: [String] = []
+        let list = FastList([Row(id: 1, name: "original")], selection: .constant([])) { Text($0.name) }
+            .rowContextMenu { row in [.button(title: "Open") { opened.append(row.name) }] }
+        let coordinator = list.makeCoordinator()
+        coordinator.reloadIfNeeded(list.items, force: true)
+
+        coordinator.performMenuAction(for: 1, entryIndex: 0)
+        #expect(opened == ["original"])
+    }
+
     @Test func hoverIndexClampsWhenTheRowSetShrinks() {
         let table = PartialReloadTableView()
         table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
