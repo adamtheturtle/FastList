@@ -13,7 +13,7 @@ import SwiftUI
 ///
 /// Chosen by the initializer the caller uses rather than by a modifier, so the table's
 /// AppKit selection behavior always matches the shape of the binding that drives it.
-public enum FastListSelectionMode: Sendable {
+enum FastListSelectionMode: Sendable {
     /// No selection at all: the table is not selectable, so a click can't leave a
     /// highlight behind. Used by the `init(_:row:)` initializer, which has no binding.
     case none
@@ -30,7 +30,7 @@ public enum FastListSelectionMode: Sendable {
 /// calling app owns the action's domain meaning and decides when an action is destructive.
 
 /// Focus-ring drawing for the macOS table and its rows.
-public enum FastListFocusRing: Sendable {
+enum FastListFocusRing: Sendable {
     /// System default focus ring.
     case `default`
     /// No focus ring.
@@ -41,7 +41,7 @@ public enum FastListFocusRing: Sendable {
 
 /// Visual list chrome that maps onto `NSTableView.Style` on macOS and SwiftUI
 /// `ListStyle` on iOS / iPadOS.
-public enum FastListStyle: Sendable {
+enum FastListStyle: Sendable {
     /// Inset rows with rounded selection (macOS default; iOS `.inset`).
     case inset
     /// Edge-to-edge rows without sidebar inset (iOS `.plain`).

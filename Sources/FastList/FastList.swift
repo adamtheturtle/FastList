@@ -80,7 +80,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     let items: [Item]
     /// Optional sectioned layout. When non-nil, section headers are rendered and `items`
     /// is the flattened concatenation of every section's items (without header rows).
-    let sections: [FastListSection<Item>]?
     /// Duplicate input is exceptional and must refresh native cells on every update: the
     /// first-winning value can change even when its deduplicated ID sequence does not.
     let containedDuplicateIDs: Bool
@@ -116,70 +115,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     ) {
         let deduplicatedItems = deduplicatedFastListItems(items)
         self.items = deduplicatedItems
-        sections = nil
         containedDuplicateIDs = deduplicatedItems.count != items.count
-        _selection = selection
-        rowContent = { AnyView(row($0)) }
-    }
-
-    /// Creates a list with a single-selection binding.
-    ///
-    /// The table is put into single-selection mode, so the user cannot shift- or
-    /// command-click a second row: a multi-row selection that this binding could not
-    /// represent is never formed in the first place. (Collapsing one after the fact with
-    /// `Set.first` would pick an arbitrary, hash-order-dependent row.)
-    public init(
-        _ items: [Item],
-        selection: Binding<Item.ID?>,
-        @ViewBuilder row: @escaping (Item) -> some View
-    ) {
-        self.init(
-            items,
-            selection: Binding(
-                get: { selection.wrappedValue.map { [$0] } ?? [] },
-                // The table is single-selection, so this set holds at most one id.
-                set: { selection.wrappedValue = $0.first }
-            ),
-            row: row
-        )
-        configuration.selectionMode = .single
-    }
-
-    /// Creates a non-selectable list.
-    ///
-    /// The table itself is made non-selectable, rather than merely dropping the selection
-    /// on the floor: a click leaves no highlight to begin with. A discarding binding would
-    /// let AppKit highlight the clicked row and, because a write that changes nothing
-    /// invalidates nothing, never get a chance to undo it.
-    public init(
-        _ items: [Item],
-        @ViewBuilder row: @escaping (Item) -> some View
-    ) {
-        self.init(items, selection: .constant([]), row: row)
-        configuration.selectionMode = .none
-    }
-
-    /// Creates a sectioned list with a multiple-selection binding.
-    ///
-    /// Section headers appear as SwiftUI `Section` headers on iOS / iPadOS. Selection and
-    /// modifiers address the flattened item ids. On macOS the items are shown flattened
-    /// (section headers use the same flat table until group-row rendering lands).
-    public init(
-        sections: [FastListSection<Item>],
-        selection: Binding<Set<Item.ID>>,
-        @ViewBuilder row: @escaping (Item) -> some View
-    ) {
-        let flat = sections.flatMap(\.items)
-        let deduplicatedItems = deduplicatedFastListItems(flat)
-        self.items = deduplicatedItems
-        self.sections = sections.map { section in
-            FastListSection(
-                id: section.id,
-                title: section.title,
-                items: deduplicatedFastListItems(section.items)
-            )
-        }
-        containedDuplicateIDs = deduplicatedItems.count != flat.count
         _selection = selection
         rowContent = { AnyView(row($0)) }
     }
@@ -228,24 +164,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         }
     }
 
-    /// Adds a native right-click menu to every row. The closure receives the clicked row and
-    /// the current selection set so you can build single-row or multi-selection menus.
-    ///
-    /// ```swift
-    /// .rowContextMenu { row, selection in
-    ///     [.button(title: "Open") { open(row) },
-    ///      .button(title: "Delete \(selection.count)", isEnabled: !selection.isEmpty) { delete(selection) }]
-    /// }
-    /// ```
-    public func rowContextMenu(_ items: @escaping (Item, Set<Item.ID>) -> [MenuItem]) -> Self {
-        copy { $0.contextMenu = items }
-    }
-
-    /// Adds a native right-click menu to every row, ignoring the current selection.
-    ///
-    /// This is the 0.9.0 signature, kept so existing single-row menu builders keep
-    /// compiling. Use the overload that also receives the selection set when the
-    /// menu depends on the selection.
+    /// Adds a native right-click menu to every row.
     ///
     /// ```swift
     /// .rowContextMenu { row in
@@ -274,34 +193,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
     #if os(macOS)
     public func onRowDrag(_ pasteboardItem: @escaping (Item) -> NSPasteboardItem?) -> Self {
         copy { $0.pasteboardItem = pasteboardItem }
-    }
-    #endif
-
-    /// Accepts drops onto a row index. `validate` decides the drag operation; `perform`
-    /// runs when the user drops. Registers the table as a drop destination on macOS.
-    #if os(macOS)
-    public func onRowDrop(
-        validate: @escaping (any NSDraggingInfo, Int) -> NSDragOperation = { _, _ in .copy },
-        perform: @escaping (any NSDraggingInfo, Int) -> Bool
-    ) -> Self {
-        copy {
-            $0.validateRowDrop = validate
-            $0.onRowDrop = perform
-        }
-    }
-    #endif
-
-    /// Makes rows draggable on iOS / iPadOS. Return an `NSItemProvider`, or `nil` to make
-    /// that row non-draggable.
-    ///
-    /// ```swift
-    /// .onRowDrag { row in
-    ///     NSItemProvider(object: row.name as NSString)
-    /// }
-    /// ```
-    #if os(iOS)
-    public func onRowDrag(_ itemProvider: @escaping (Item) -> NSItemProvider?) -> Self {
-        copy { $0.itemProvider = itemProvider }
     }
     #endif
 
@@ -353,80 +244,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         copy { $0.rowContentID = AnyHashable(id) }
     }
 
-    /// Adds an accessibility value such as "3 of 100" to each row.
-    public func accessibilityRowPosition(_ enabled: Bool = true) -> Self {
-        copy { $0.accessibilityIncludesRowPosition = enabled }
-    }
-
-    /// Posts an accessibility announcement when the selection set changes.
-    public func accessibilityAnnounceSelectionChanges(_ enabled: Bool = true) -> Self {
-        copy { $0.accessibilityAnnouncesSelectionChanges = enabled }
-    }
-
-    /// Customizes the AppKit focus ring drawn around the table and its rows.
-    #if os(macOS)
-    public func focusRing(_ style: FastListFocusRing) -> Self {
-        copy { $0.focusRing = style }
-    }
-    #endif
-
-    /// Highlights the row under the pointer on macOS.
-    public func hoverHighlight(_ enabled: Bool = true) -> Self {
-        copy { $0.highlightsRowsOnHover = enabled }
-    }
-
-    /// Chooses the native list chrome (inset, plain, or sidebar).
-    ///
-    /// On macOS this sets `NSTableView.style`. On iOS / iPadOS it sets the SwiftUI
-    /// `List` style. Use ``FastListStyle/sidebar`` when the list is the leading column
-    /// of a `NavigationSplitView`.
-    public func listStyle(_ style: FastListStyle) -> Self {
-        copy { $0.listStyle = style }
-    }
-
-    /// Enables interactive row reordering. The closure receives the source indexes and
-    /// destination offset, matching SwiftUI's `onMove` semantics. The caller must mutate
-    /// `items` to match; `FastList` does not own the array.
-    ///
-    /// On iOS this uses `ForEach.onMove`. On macOS it accepts local row drags as a reorder
-    /// drop onto the destination index.
-    public func onMove(_ action: @escaping (IndexSet, Int) -> Void) -> Self {
-        copy { $0.onMoveRows = action }
-    }
-
-    /// Toggles native list editing mode.
-    ///
-    /// On iOS / iPadOS this sets `EditMode.active` so swipe-to-delete and `onMove` reorder
-    /// controls appear. On macOS the flag is stored for source compatibility; AppKit tables
-    /// do not use a global edit mode.
-    public func editing(_ isEditing: Bool) -> Self {
-        copy { $0.isEditing = isEditing }
-    }
-
-    /// Uses the platform `List` selection binding so selection stays synchronized when the
-    /// list is the leading column of a `NavigationSplitView`.
-    ///
-    /// Prefer this for sidebar columns. Content columns that need the custom inset highlight
-    /// (to avoid full-bleed selection behind the sidebar) should leave this off.
-    public func navigationSplitSelectionSync(_ enabled: Bool = true) -> Self {
-        copy { $0.usesNativeSelectionBinding = enabled }
-    }
-
-    /// Draws alternating row backgrounds on every second row.
-    public func alternatingRowBackgrounds(_ enabled: Bool = true) -> Self {
-        copy { $0.alternatingRowBackgrounds = enabled }
-    }
-
-    /// Pins a header view above the list rows.
-    public func listHeader<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> Self {
-        copy { $0.listHeaderContent = { AnyView(content()) } }
-    }
-
-    /// Pins a footer view below the list rows.
-    public func listFooter<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> Self {
-        copy { $0.listFooterContent = { AnyView(content()) } }
-    }
-
     /// Fires when the last visible row comes within `threshold` rows of the end of the data
     /// as a user scroll settles - the trigger for load-more / infinite-scroll paging.
     ///
@@ -470,40 +287,6 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             $0.scrollToID = id
             $0.onScrolledToID = then
         }
-    }
-
-    /// Prefetches upcoming rows when the viewport nears rows that are not yet loaded.
-    ///
-    /// ```swift
-    /// .onPrefetchRows(count: 20) { upcoming in warmCache(for: upcoming) }
-    /// ```
-    public func onPrefetchRows(
-        count: Int = 10,
-        perform: @escaping (_ upcoming: [Item]) -> Void
-    ) -> Self {
-        copy {
-            $0.prefetchRowCount = count
-            $0.onPrefetchRows = perform
-        }
-    }
-
-    /// Shows `content` when the list has no rows instead of an empty table or list.
-    ///
-    /// ```swift
-    /// .emptyState {
-    ///     ContentUnavailableView("No results", systemImage: "magnifyingglass")
-    /// }
-    /// ```
-    public func emptyState<Content: View>(@ViewBuilder _ content: @escaping () -> Content) -> Self {
-        copy { $0.emptyStateContent = { AnyView(content()) } }
-    }
-
-    /// Reports the inclusive range of row indices currently visible in the viewport.
-    ///
-    /// Indices are zero-based positions in the `items` array you passed to ``FastList``,
-    /// updated whenever the visible rect changes.
-    public func onVisibleRowRangeChange(_ action: @escaping (ClosedRange<Int>) -> Void) -> Self {
-        copy { $0.onVisibleRowRangeChange = action }
     }
 
     private func copy(_ mutate: (inout FastListConfiguration<Item>) -> Void) -> Self {
@@ -731,7 +514,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             // keeps normal, readable text and no ring.
             ScrollViewReader { proxy in
                 nativeSelectionList {
-                    nativeSectionedRows
+                    nativeRows
                 }
                 // `.plain`, with a custom selection background (see `selectionBackground`).
                 // The earlier `.sidebar` style insets selection nicely when the list IS the
@@ -794,39 +577,10 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
         }
 
         @ViewBuilder
-        private var nativeSectionedRows: some View {
-            if let sections {
-                ForEach(Array(sections.enumerated()), id: \.element.id) { sectionIndex, section in
-                    Section {
-                        ForEach(Array(section.items.enumerated()), id: \.element.id) { itemOffset, item in
-                            let flatIndex = flatIndex(sectionIndex: sectionIndex, itemOffset: itemOffset, in: sections)
-                            nativeInstrumentedRow(for: item, at: flatIndex)
-                        }
-                    } header: {
-                        if let title = section.title {
-                            Text(title)
-                        }
-                    }
-                }
-            } else if let onMove = configuration.onMoveRows {
-                ForEach(Array(items.enumerated()), id: \.element.id) { indexedItem in
-                    nativeInstrumentedRow(for: indexedItem.element, at: indexedItem.offset)
-                }
-                .onMove(perform: onMove)
-            } else {
-                ForEach(Array(items.enumerated()), id: \.element.id) { indexedItem in
-                    nativeInstrumentedRow(for: indexedItem.element, at: indexedItem.offset)
-                }
+        private var nativeRows: some View {
+            ForEach(Array(items.enumerated()), id: \.element.id) { indexedItem in
+                nativeInstrumentedRow(for: indexedItem.element, at: indexedItem.offset)
             }
-        }
-
-        private func flatIndex(
-            sectionIndex: Int,
-            itemOffset: Int,
-            in sections: [FastListSection<Item>]
-        ) -> Int {
-            let prior = sections.prefix(sectionIndex).reduce(0) { $0 + $1.items.count }
-            return prior + itemOffset
         }
 
         @ViewBuilder
