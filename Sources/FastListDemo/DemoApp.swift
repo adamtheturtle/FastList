@@ -88,10 +88,13 @@ private struct ContentView: View {
             [SwipeAction(title: "Delete", role: .destructive, systemImage: "trash") { delete(contact) }]
         }
         .rowContextMenu { contact in
-            [
+            // The clicked row is the target when nothing is selected, matching the
+            // platform convention; otherwise the whole selection is.
+            let deleteIDs = selection.isEmpty ? [contact.id] : selection
+            return [
                 .button(title: contact.isFlagged ? "Unflag" : "Flag") { toggleFlag(contact) },
                 .separator,
-                .button(title: "Delete") { deleteSelected([contact.id]) }
+                .button(title: "Delete \(deleteIDs.count)") { deleteSelected(deleteIDs) }
             ]
         }
         #if os(macOS)
