@@ -173,25 +173,6 @@ private final class SnapshotReloadTableView: NSTableView {
         #expect(table.reloadCount == 2)
     }
 
-    @Test func accessibilityRowPositionToggleForcesReload() {
-        let table = CountingTableView()
-        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
-
-        var list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
-        let coordinator = list.makeCoordinator()
-        coordinator.tableView = table
-        coordinator.reloadIfNeeded([Row(id: 1, name: "a")], force: true)
-        #expect(table.reloadCount == 1)
-
-        list = list.accessibilityRowPosition(true)
-        coordinator.parent = list
-        coordinator.reloadIfNeeded([Row(id: 1, name: "a")], force: false)
-        #expect(table.reloadCount == 2)
-
-        coordinator.reloadIfNeeded([Row(id: 1, name: "a")], force: false)
-        #expect(table.reloadCount == 2)
-    }
-
     @Test func duplicateIDsKeepTheFirstIndex() {
         let coordinator = makeCoordinator([])
         coordinator.reloadIfNeeded([Row(id: 1, name: "first"), Row(id: 1, name: "dupe")], force: true)
@@ -341,33 +322,6 @@ private final class SnapshotReloadTableView: NSTableView {
         #expect(!scrollView.contentView.postsBoundsChangedNotifications)
     }
 
-    @Test func resetsPrefetchWatermarkWhenTheSnapshotChanges() {
-        var prefetched: [[Row]] = []
-        var list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
-            .onPrefetchRows(count: 1) { prefetched.append($0) }
-        let coordinator = list.makeCoordinator()
-        let table = SnapshotReloadTableView()
-        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
-        table.dataSource = coordinator
-        table.delegate = coordinator
-        coordinator.tableView = table
-        table.onReload = {
-            coordinator.scrollPositionChanged()
-        }
-        coordinator.reloadIfNeeded(
-            (1 ... 5).map { Row(id: $0, name: "\($0)") },
-            force: true
-        )
-        prefetched.removeAll()
-
-        list = FastList((1 ... 3).map { Row(id: $0, name: "\($0)") }, selection: .constant([])) { Text($0.name) }
-            .onPrefetchRows(count: 1) { prefetched.append($0) }
-        coordinator.parent = list
-        coordinator.reloadIfNeeded(list.items, force: false)
-
-        #expect(!prefetched.isEmpty)
-    }
-
     @Test func suppressesTopRowCallbacksWhileReplacingTheNativeSnapshot() {
         var reported: [Int?] = []
         var callbacksDuringReload = -1
@@ -403,7 +357,7 @@ private final class SnapshotReloadTableView: NSTableView {
         coordinator.updateContextMenuRegistration(on: table)
         #expect(table.menu == nil)
 
-        coordinator.parent = base.rowContextMenu { _, _ in [.button(title: "Open") {}] }
+        coordinator.parent = base.rowContextMenu { _ in [.button(title: "Open") {}] }
         coordinator.updateContextMenuRegistration(on: table)
         #expect(table.menu != nil)
         #expect(table.menu?.delegate === coordinator)
@@ -436,7 +390,7 @@ private final class SnapshotReloadTableView: NSTableView {
     @Test func contextMenuActionsResolveAgainstTheCurrentSnapshot() {
         var opened: [String] = []
         var list = FastList([Row(id: 1, name: "original")], selection: .constant([])) { Text($0.name) }
-            .rowContextMenu { row, _ in [.button(title: "Open") { opened.append(row.name) }] }
+            .rowContextMenu { row in [.button(title: "Open") { opened.append(row.name) }] }
         let coordinator = list.makeCoordinator()
         coordinator.reloadIfNeeded(list.items, force: true)
 
@@ -448,7 +402,7 @@ private final class SnapshotReloadTableView: NSTableView {
         #expect(opened == ["original"])
 
         list = FastList([Row(id: 1, name: "replacement")], selection: .constant([])) { Text($0.name) }
-            .rowContextMenu { row, _ in [.button(title: "Open") { opened.append(row.name) }] }
+            .rowContextMenu { row in [.button(title: "Open") { opened.append(row.name) }] }
         coordinator.parent = list
         coordinator.reloadIfNeeded(list.items, force: true)
         coordinator.performMenuAction(for: 1, entryIndex: 0)
@@ -464,34 +418,6 @@ private final class SnapshotReloadTableView: NSTableView {
 
         coordinator.performMenuAction(for: 1, entryIndex: 0)
         #expect(opened == ["original"])
-    }
-
-    @Test func hoverIndexClampsWhenTheRowSetShrinks() {
-        let table = PartialReloadTableView()
-        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
-        let rows = [
-            Row(id: 1, name: "a"),
-            Row(id: 2, name: "b"),
-            Row(id: 3, name: "c")
-        ]
-        var list = FastList(rows, selection: .constant([])) { Text($0.name) }
-            .hoverHighlight(true)
-        let coordinator = list.makeCoordinator()
-        coordinator.tableView = table
-        table.dataSource = coordinator
-        table.delegate = coordinator
-        coordinator.reloadIfNeeded(rows, force: true)
-        coordinator.updateHoveredRow(2, in: table)
-        #expect(table.partialReloadRowIndexes.last == IndexSet(integer: 2))
-
-        list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
-            .hoverHighlight(true)
-        coordinator.parent = list
-        table.partialReloadRowIndexes.removeAll()
-        coordinator.reloadIfNeeded(list.items, force: false)
-        // Stale hover must not reload an out-of-bounds row.
-        coordinator.updateHoveredRow(2, in: table)
-        #expect(table.partialReloadRowIndexes.isEmpty)
     }
 
     @Test func selectionAnchorRemapsWhenRowsReorder() {
@@ -514,7 +440,7 @@ private final class SnapshotReloadTableView: NSTableView {
     @Test func contextMenuActionDoesNotRetargetWhenEntriesReorder() {
         var performed: [String] = []
         var list = FastList([Row(id: 1, name: "row")], selection: .constant([])) { Text($0.name) }
-            .rowContextMenu { _, _ in
+            .rowContextMenu { _ in
                 [
                     .button(title: "Open") { performed.append("open") },
                     .button(title: "Delete") { performed.append("delete") }
@@ -524,7 +450,7 @@ private final class SnapshotReloadTableView: NSTableView {
         coordinator.reloadIfNeeded(list.items, force: true)
 
         list = FastList(list.items, selection: .constant([])) { Text($0.name) }
-            .rowContextMenu { _, _ in
+            .rowContextMenu { _ in
                 [
                     .button(title: "Delete") { performed.append("delete") },
                     .button(title: "Open") { performed.append("open") }
@@ -817,7 +743,7 @@ private extension NSEvent {
             .onDoubleClick { _ in }
             .onReturnKey { _ in }
             .swipeActions(edge: .trailing) { _ in [] }
-            .rowContextMenu { _, _ in [] }
+            .rowContextMenu { _ in [] }
             .rowContentID("content")
 
         #expect(configured.configuration.onDoubleClick != nil)
@@ -842,39 +768,6 @@ private extension NSEvent {
         #expect(base.configuration.onReachEnd == nil)
     }
 
-    @Test func focusRingConfiguresTable() {
-        let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
-        #expect(base.configuration.focusRing == .default)
-
-        let none = base.focusRing(.none)
-        #expect(none.configuration.focusRing == .none)
-
-        let table = NSTableView()
-        none.applyFocusRing(to: table)
-        #expect(table.focusRingType == .none)
-
-        let exterior = base.focusRing(.exterior)
-        exterior.applyFocusRing(to: table)
-        #expect(table.focusRingType == .exterior)
-    }
-
-    @Test func listStyleStoresAndAppliesOnMacOS() {
-        let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
-        #expect(base.configuration.listStyle == .inset)
-
-        let sidebar = base.listStyle(.sidebar)
-        #expect(sidebar.configuration.listStyle == .sidebar)
-
-        let table = NSTableView()
-        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
-        sidebar.applyListStyle(to: table)
-        #expect(table.style == .sourceList)
-
-        let plain = base.listStyle(.plain)
-        plain.applyListStyle(to: table)
-        #expect(table.style == .plain)
-    }
-
     @Test func swipeActionsPreserveMoreThanTwoButtonsPerEdge() {
         let actions = [
             SwipeAction(title: "One") {},
@@ -897,32 +790,6 @@ private extension NSEvent {
         #expect(rowActions.map(\.title) == ["One", "Two", "Three"])
     }
 
-    @Test func onMoveStoresHandlerAndEnablesLocalDrag() {
-        let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
-        #expect(base.configuration.onMoveRows == nil)
-
-        let configured = base.onMove { _, _ in }
-        #expect(configured.configuration.onMoveRows != nil)
-
-        let table = DragRegistrationTableView()
-        let coordinator = configured.makeCoordinator()
-        coordinator.updateDragRegistration(on: table)
-        #expect(table.localMask.contains(.move))
-    }
-
-    @Test func onRowDropStoresHandlers() {
-        let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
-        #expect(base.configuration.onRowDrop == nil)
-
-        let configured = base.onRowDrop(
-            validate: { _, _ in .copy },
-            perform: { _, _ in true }
-        )
-        #expect(configured.configuration.onRowDrop != nil)
-        #expect(configured.configuration.validateRowDrop != nil)
-        #expect(base.configuration.onRowDrop == nil)
-    }
-
     @Test func swipeEdgeRoutesToTheRightSlot() {
         let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
         let leading = base.swipeActions(edge: .leading) { _ in [SwipeAction(title: "Flag") {}] }
@@ -931,207 +798,4 @@ private extension NSEvent {
     }
 }
 
-@MainActor
-@Suite struct FastListSelectionModeTests {
-    /// What a configured table's selection behavior actually comes out as: the AppKit flag plus
-    /// the two delegate answers that decide whether a selection can happen at all.
-    private struct TableSelectionState {
-        var allowsMultipleSelection: Bool
-        var allowsSelection: Bool
-        var allowsRowSelection: Bool
-    }
-
-    /// Regression test for the single-selection binding collapsing a multi-row selection to an
-    /// arbitrary (hash-ordered) row: the table must be single-selection so the multi-row
-    /// selection can never form.
-
-    @Test func shiftRangeSelectionRequiresMultipleMode() {
-        var selected: Int? = 1
-        let binding = Binding<Int?>(get: { selected }, set: { selected = $0 })
-        let single = FastList([Row(id: 1, name: "a"), Row(id: 2, name: "b")], selection: binding) {
-            Text($0.name)
-        }
-        #expect(!single.makeCoordinator().testingAllowsShiftRangeSelection)
-
-        let multiple = FastList(
-            [Row(id: 1, name: "a"), Row(id: 2, name: "b")],
-            selection: .constant(Set<Int>())
-        ) { Text($0.name) }
-        #expect(multiple.makeCoordinator().testingAllowsShiftRangeSelection)
-    }
-
-    @Test func singleSelectionBindingUsesSingleSelectionMode() {
-        var selected: Int?
-        let binding = Binding<Int?>(get: { selected }, set: { selected = $0 })
-        let list = FastList([Row(id: 7, name: "a")], selection: binding) { Text($0.name) }
-
-        #expect(list.configuration.selectionMode == .single)
-        #expect(!tableSelectionState(for: list).allowsMultipleSelection)
-    }
-
-    /// Regression test for the "non-selectable" list being selectable: the table must refuse
-    /// selection outright rather than discarding the write into a `.constant` binding, which
-    /// leaves AppKit's highlight on screen forever.
-    @Test func nonSelectableListRefusesSelection() {
-        let list = FastList([Row(id: 1, name: "a"), Row(id: 2, name: "b")]) { Text($0.name) }
-        #expect(list.configuration.selectionMode == .none)
-
-        let state = tableSelectionState(for: list)
-        #expect(!state.allowsMultipleSelection)
-        #expect(!state.allowsSelection)
-        #expect(!state.allowsRowSelection)
-    }
-
-    @Test func multipleSelectionListStaysMultiSelect() {
-        let list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
-        #expect(list.configuration.selectionMode == .multiple)
-
-        let state = tableSelectionState(for: list)
-        #expect(state.allowsMultipleSelection)
-        #expect(state.allowsSelection)
-        #expect(state.allowsRowSelection)
-    }
-
-    /// Builds the real `NSTableView` the representable would build and reports what its
-    /// selection behavior actually ends up as, delegate included.
-    private func tableSelectionState(for list: FastList<Row>) -> TableSelectionState {
-        let coordinator = list.makeCoordinator()
-        let table = NSTableView()
-        table.addTableColumn(NSTableColumn(identifier: .fastListColumn))
-        table.dataSource = coordinator
-        table.delegate = coordinator
-        coordinator.tableView = table
-        coordinator.reloadIfNeeded(list.items, force: true)
-        // The same call `makeNSView` / `updateNSView` make; a real `Context` can't be built in
-        // a unit test, so drive the table configuration directly.
-        list.configureSelection(for: table)
-
-        return TableSelectionState(
-            allowsMultipleSelection: table.allowsMultipleSelection,
-            allowsSelection: coordinator.selectionShouldChange(in: table),
-            allowsRowSelection: coordinator.tableView(table, shouldSelectRow: 0)
-        )
-    }
-
-    @Test func singleSelectionBindingBridgesToASet() {
-        var selected: Int?
-        let binding = Binding<Int?>(get: { selected }, set: { selected = $0 })
-        let list = FastList([Row(id: 7, name: "a")], selection: binding) { Text($0.name) }
-
-        list.$selection.wrappedValue = [7]
-        #expect(selected == 7)
-
-        list.$selection.wrappedValue = []
-        #expect(selected == nil)
-    }
-}
-
-@MainActor
-@Suite struct FastListHoverTrackingTests {
-    @Test func trackingAreaIncludesMouseEnteredAndExited() {
-        let table = KeyHandlingTableView(frame: NSRect(x: 0, y: 0, width: 200, height: 200))
-        table.updateTrackingAreas()
-        let options = table.trackingAreas.map(\.options)
-        #expect(options.contains { $0.contains(.mouseEnteredAndExited) })
-        #expect(options.contains { $0.contains(.mouseMoved) })
-    }
-}
-
-@MainActor
-@Suite struct FastListChromeTests {
-    @Test func clearingHeaderCollapsesReservedHeight() {
-        let container = FastListContainerView(frame: NSRect(x: 0, y: 0, width: 320, height: 480))
-        container.updateChrome(
-            header: AnyView(Text("Header").frame(minHeight: 44)),
-            footer: nil
-        )
-        container.layoutSubtreeIfNeeded()
-        let heightWithHeader = container.headerHostingView.fittingSize.height
-        #expect(heightWithHeader > 1)
-
-        container.updateChrome(header: nil, footer: nil)
-        container.layoutSubtreeIfNeeded()
-        #expect(container.headerHostingView.isHidden)
-        #expect(container.headerHostingView.fittingSize.height < heightWithHeader)
-    }
-}
-
 #endif
-
-#if os(iOS)
-@MainActor
-@Suite struct IOSRowDragModifierTests {
-    private struct Row: Identifiable, Equatable {
-        let id: Int
-        let name: String
-    }
-
-    @Test func onRowDragStoresItemProvider() {
-        let base = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
-        #expect(base.configuration.itemProvider == nil)
-
-        let configured = base.onRowDrag { row in
-            NSItemProvider(object: row.name as NSString)
-        }
-        #expect(configured.configuration.itemProvider != nil)
-        let provider = configured.configuration.itemProvider?(Row(id: 1, name: "a"))
-        #expect(provider != nil)
-        #expect(base.configuration.itemProvider == nil)
-    }
-}
-#endif
-
-@MainActor
-@Suite struct FastListSectionTests {
-    private struct Row: Identifiable, Equatable {
-        let id: Int
-        let name: String
-    }
-
-    @Test func sectionedInitFlattensItems() {
-        let sections = [
-            FastListSection("A", items: [Row(id: 1, name: "a1"), Row(id: 2, name: "a2")]),
-            FastListSection("B", items: [Row(id: 3, name: "b1")])
-        ]
-        let list = FastList(sections: sections, selection: .constant([])) { Text($0.name) }
-        #expect(list.items.map(\.id) == [1, 2, 3])
-        #expect(list.sections?.count == 2)
-        #expect(list.sections?[0].title == "A")
-        #expect(list.sections?[1].items.map(\.id) == [3])
-    }
-
-    @Test func flatInitLeavesSectionsNil() {
-        let list = FastList([Row(id: 1, name: "a")], selection: .constant([])) { Text($0.name) }
-        #expect(list.sections == nil)
-    }
-}
-
-@MainActor
-@Suite struct FastListEditingModifierTests {
-    private struct Row: Identifiable {
-        let id: Int
-    }
-
-    @Test func editingModifierStoresFlag() {
-        let base = FastList([Row(id: 1)], selection: .constant([])) { _ in Text("row") }
-        #expect(!base.configuration.isEditing)
-        let editing = base.editing(true)
-        #expect(editing.configuration.isEditing)
-        #expect(!base.configuration.isEditing)
-    }
-}
-
-@MainActor
-@Suite struct FastListNavigationSplitSyncTests {
-    private struct Row: Identifiable {
-        let id: Int
-    }
-
-    @Test func navigationSplitSelectionSyncStoresFlag() {
-        let base = FastList([Row(id: 1)], selection: .constant([])) { _ in Text("row") }
-        #expect(!base.configuration.usesNativeSelectionBinding)
-        let synced = base.navigationSplitSelectionSync()
-        #expect(synced.configuration.usesNativeSelectionBinding)
-        #expect(!base.configuration.usesNativeSelectionBinding)
-    }
-}

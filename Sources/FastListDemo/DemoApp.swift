@@ -87,12 +87,11 @@ private struct ContentView: View {
         .swipeActions(edge: .trailing) { contact in
             [SwipeAction(title: "Delete", role: .destructive, systemImage: "trash") { delete(contact) }]
         }
-        .rowContextMenu { contact, selection in
-            let deleteIDs = selection.isEmpty ? [contact.id] : selection
-            return [
+        .rowContextMenu { contact in
+            [
                 .button(title: contact.isFlagged ? "Unflag" : "Flag") { toggleFlag(contact) },
                 .separator,
-                .button(title: "Delete \(deleteIDs.count)") { deleteSelected(deleteIDs) }
+                .button(title: "Delete") { deleteSelected([contact.id]) }
             ]
         }
         #if os(macOS)
