@@ -1,8 +1,7 @@
 # Contributing to FastList
 
-Thanks for helping improve FastList. This package is a small shared recycled-list
-primitive: keep changes focused on native list mechanics, and leave app domain
-behavior to callers.
+Thanks for helping improve FastList.
+This package is a small shared recycled-list primitive: keep changes focused on native list mechanics, and leave app domain behavior to callers.
 
 ## Development setup
 
@@ -50,7 +49,5 @@ behavior to callers.
 
 ## Ownership boundary
 
-FastList owns recycled rows, selection wiring, activation hooks, swipe and context
-menu rendering, paging signals, and scroll-position reporting. Calling apps own
-row layout, domain commands, menu construction, drag payload meaning, pagination
-UI, and persisted scroll state.
+FastList owns recycled rows, selection wiring, activation hooks, swipe and context menu rendering, paging signals, and scroll-position reporting.
+Calling apps own row layout, domain commands, menu construction, drag payload meaning, pagination UI, and persisted scroll state.
