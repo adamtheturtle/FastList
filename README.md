@@ -2,8 +2,7 @@
 
 A drop-in, `NSTableView`-backed replacement for SwiftUI `List` on macOS.
 
-[Documentation](https://swiftpackageindex.com/adamtheturtle/FastList/documentation/fastlist) |
-[Swift Package Index](https://swiftpackageindex.com/adamtheturtle/FastList)
+[Documentation](https://swiftpackageindex.com/adamtheturtle/FastList/documentation/fastlist) | [Swift Package Index](https://swiftpackageindex.com/adamtheturtle/FastList)
 
 ## Installation
 
@@ -35,26 +34,20 @@ struct ContactsView: View {
 }
 ```
 
-On macOS, make non-interactive row chrome hit-transparent so clicks reach the
-`NSTableView`. Interactive controls inside a row still receive their own events.
-See the [documentation](https://swiftpackageindex.com/adamtheturtle/FastList/documentation/fastlist)
-for swipe actions, context menus, scroll restore, and the iOS backend.
+On macOS, make non-interactive row chrome hit-transparent so clicks reach the `NSTableView`.
+Interactive controls inside a row still receive their own events.
+See the [documentation](https://swiftpackageindex.com/adamtheturtle/FastList/documentation/fastlist) for swipe actions, context menus, scroll restore, and the iOS backend.
 
 ## Scope
 
-`FastList` owns native list mechanics: recycled macOS rows, selection, activation,
-swipe and context-menu rendering, row dragging, paging signals, and scroll-position
-reporting/restoration. Its native SwiftUI backend supplies the same shared list behavior
-to supported non-macOS callers.
+`FastList` owns native list mechanics: recycled macOS rows, selection, activation, swipe and context-menu rendering, row dragging, paging signals, and scroll-position reporting/restoration.
+Its native SwiftUI backend supplies the same shared list behavior to supported non-macOS callers.
 
-Calling apps own row layout, domain commands, menu construction, drag payload meaning,
-pagination state and UI, and persisted scroll state. `SwipeAction` and `MenuItem` are small
-platform-neutral inputs to FastList's native renderers; they are not a shared design system.
+Calling apps own row layout, domain commands, menu construction, drag payload meaning, pagination state and UI, and persisted scroll state.
+`SwipeAction` and `MenuItem` are small platform-neutral inputs to FastList's native renderers; they are not a shared design system.
 
-When hosted row content depends on caller-owned state that is not represented by the item
-ids, use `rowContentID(_:)` with a revision or other inexpensive `Hashable` token. Changing
-the token rebuilds recycled macOS rows without turning ordinary selection updates into full
-reloads.
+When hosted row content depends on caller-owned state that is not represented by the item ids, use `rowContentID(_:)` with a revision or other inexpensive `Hashable` token.
+Changing the token rebuilds recycled macOS rows without turning ordinary selection updates into full reloads.
 
 The `FastListDemo` executable is the compile-checked usage example:
 
@@ -69,4 +62,5 @@ swift run FastListDemo
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT.
+See [LICENSE](LICENSE).

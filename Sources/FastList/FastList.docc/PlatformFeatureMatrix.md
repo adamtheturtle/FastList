@@ -1,7 +1,7 @@
 # Platform feature matrix
 
-FastList exposes one modifier surface. Behavior is implemented by the AppKit
-`NSTableView` backend on macOS and by a native SwiftUI `List` on iOS and iPadOS.
+FastList exposes one modifier surface.
+Behavior is implemented by the AppKit `NSTableView` backend on macOS and by a native SwiftUI `List` on iOS and iPadOS.
 
 | Capability | macOS | iOS / iPadOS |
 | --- | --- | --- |
@@ -16,5 +16,5 @@ FastList exposes one modifier surface. Behavior is implemented by the AppKit
 | `onReachEnd` | Yes | Yes (row `onAppear` + shared gate) |
 | `rowContentID` | Reloads recycled cells | Accepted for source compatibility |
 
-Prefer the shared modifiers so call sites stay cross-platform. Platform-only
-APIs (`onRowDrag`, drag session observers) are compiled out of non-macOS builds.
+Prefer the shared modifiers so call sites stay cross-platform.
+Platform-only APIs (`onRowDrag`, drag session observers) are compiled out of non-macOS builds.
