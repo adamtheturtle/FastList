@@ -441,6 +441,11 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
 
         @ViewBuilder
         func body(content: Content) -> some View {
+            #if os(tvOS)
+                // tvOS has no inset or sidebar List style. Keep all three
+                // FastList styles usable with the native plain List style.
+                content.listStyle(.plain)
+            #else
             switch style {
             case .inset:
                 content.listStyle(.inset)
@@ -449,6 +454,7 @@ public struct FastList<Item: Identifiable> where Item.ID: Hashable {
             case .sidebar:
                 content.listStyle(.sidebar)
             }
+            #endif
         }
     }
 
