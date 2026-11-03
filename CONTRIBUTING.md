@@ -21,8 +21,8 @@ This package is a small shared recycled-list primitive: keep changes focused on 
 4. Lint Markdown with Vale (styles sync on first run):
 
    ```sh
-   uvx vale@3.13.0.0 sync
-   git ls-files '*.md' | xargs uvx vale@3.13.0.0
+   uvx vale@3.26.0.1 sync
+   git ls-files '*.md' | xargs uvx vale@3.26.0.1
    ```
 
 5. Build for the iOS Simulator when you touch the native SwiftUI backend:
