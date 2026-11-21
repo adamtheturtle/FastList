@@ -34,7 +34,7 @@ struct ContactsView: View {
 }
 ```
 
-On macOS, make non-interactive row chrome hit-transparent so clicks reach the `NSTableView`.
+On macOS, disable hit testing on non-interactive row chrome to pass clicks to the `NSTableView`.
 Interactive controls inside a row still receive their own events.
 See the [documentation](https://swiftpackageindex.com/adamtheturtle/FastList/documentation/fastlist) for swipe actions, context menus, scroll restore, and the iOS backend.
 

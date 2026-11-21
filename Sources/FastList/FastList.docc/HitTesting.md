@@ -5,7 +5,7 @@ Native table selection, double-click, and context-menu hit testing belong to the
 
 ## Make chrome hit-transparent
 
-Apply `.allowsHitTesting(false)` to the non-interactive parts of the row so a left click reaches the table underneath:
+Apply `.allowsHitTesting(false)` to the non-interactive parts of the row to pass left clicks to the table:
 
 ```swift
 FastList(rows, selection: $selection) { row in
@@ -49,4 +49,5 @@ FastList(rows, selection: $selection) { row in
 ## iOS / iPadOS
 
 The native SwiftUI `List` backend already uses a rectangular content shape and per-row tap handling for selection.
-Prefer putting interactive controls in the row body as usual; they keep their own gesture targets while the row chrome remains tappable.
+Put interactive controls in the row body.
+The controls handle their gestures, and the row chrome remains tappable.
