@@ -1,6 +1,6 @@
 # Platform feature matrix
 
-FastList exposes one modifier surface.
+FastList uses the same modifiers on each platform.
 Behavior is implemented by the AppKit `NSTableView` backend on macOS and by a native SwiftUI `List` on iOS and iPadOS.
 
 | Capability | macOS | iOS / iPadOS |
