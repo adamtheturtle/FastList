@@ -49,4 +49,5 @@ FastList(rows, selection: $selection) { row in
 ## iOS / iPadOS
 
 The native SwiftUI `List` backend already uses a rectangular content shape and per-row tap handling for selection.
-Put interactive controls in the row body. The controls handle their gestures, and the row chrome remains tappable.
+Put interactive controls in the row body.
+The controls handle their gestures, and the row chrome remains tappable.

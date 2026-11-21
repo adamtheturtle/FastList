@@ -1,7 +1,8 @@
 # Filter performance for 100k+ rows
 
 FastList renders exactly the `[Item]` you pass.
-The calling app filters and sorts its own model. The list uses the resulting data.
+The calling app filters and sorts its own model.
+The list uses the resulting data.
 
 ## Keep filtering off the hot path
 
